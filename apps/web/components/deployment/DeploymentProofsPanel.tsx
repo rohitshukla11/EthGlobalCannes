@@ -18,6 +18,7 @@ export type DeploymentProofsPanelProps = {
     inftContractAddress: string;
     tokenUri: string;
     configRoot: string;
+    metadataRoot?: string;
   };
   ensMetadataWritten?: boolean | null;
   /** When false, omit link to /agent/[id]/deployment. */
@@ -70,11 +71,17 @@ export function DeploymentProofsPanel({
           </div>
         ) : null}
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.08em] text-tertiary/80">0G Storage config root</dt>
+          <dt className="text-[10px] uppercase tracking-[0.08em] text-tertiary/80">0G — agent config root</dt>
           <dd className="mt-1 break-all text-secondary">{fmtRoot(deployment.configRoot)}</dd>
         </div>
+        {deployment.metadataRoot ? (
+          <div>
+            <dt className="text-[10px] uppercase tracking-[0.08em] text-tertiary/80">0G — NFT metadata root</dt>
+            <dd className="mt-1 break-all text-secondary">{fmtRoot(deployment.metadataRoot)}</dd>
+          </div>
+        ) : null}
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.08em] text-tertiary/80">Agent id (API registry)</dt>
+          <dt className="text-[10px] uppercase tracking-[0.08em] text-tertiary/80">Canonical id (ENS-bound)</dt>
           <dd className="mt-1 break-all text-primary">{agent.id}</dd>
         </div>
         <div>
@@ -130,14 +137,14 @@ export function DeploymentProofsPanel({
           </>
         ) : null}
         <Link
-          href={`/agent/${agent.id}`}
+          href={`/agent/${encodeURIComponent(agent.id)}`}
           className="rounded-control border border-mid bg-void px-3 py-2 font-mono text-[10px] text-accent no-underline hover:border-accent"
         >
           Agent profile
         </Link>
         {showDeepLink ? (
           <Link
-            href={`/agent/${agent.id}/deployment`}
+            href={`/agent/${encodeURIComponent(agent.id)}/deployment`}
             className="rounded-control border border-mid bg-void px-3 py-2 font-mono text-[10px] text-accent no-underline hover:border-accent"
           >
             Deployment page

@@ -1,0 +1,162 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+:root {
+  --accent: #e8ff5a;
+  --accent-hover: #f0ff70;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+}
+
+@keyframes iris-ring-spin {
+  to {
+    rotate: 1turn;
+  }
+}
+
+@keyframes iris-ring-spin-rev {
+  to {
+    rotate: -1turn;
+  }
+}
+
+@keyframes iris-scanline {
+  0% {
+    transform: translateY(-80px);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(80px);
+    opacity: 0;
+  }
+}
+
+@keyframes verify-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.75);
+    opacity: 0.4;
+  }
+}
+
+@keyframes hex-pulse {
+  0%,
+  100% {
+    fill: transparent;
+  }
+  50% {
+    fill: rgba(232, 255, 90, 0.08);
+  }
+}
+
+@keyframes spin-smooth {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.iris-ring-outer {
+  animation: iris-ring-spin 8s linear infinite;
+  transform-origin: 90px 90px;
+}
+
+.iris-ring-mid {
+  animation: iris-ring-spin-rev 5s linear infinite;
+  transform-origin: 90px 90px;
+}
+
+.iris-scanline {
+  animation: iris-scanline 2.5s ease-in-out infinite;
+}
+
+.iris-scanline-paused {
+  animation-play-state: paused;
+}
+
+.iris-core-pulse {
+  animation: verify-pulse 1.2s ease-in-out infinite;
+  transform-origin: 90px 90px;
+}
+
+.hex-pulse-a {
+  animation: hex-pulse 2s ease-in-out infinite;
+}
+.hex-pulse-b {
+  animation: hex-pulse 2s ease-in-out infinite;
+  animation-delay: 0.4s;
+}
+.hex-pulse-c {
+  animation: hex-pulse 2s ease-in-out infinite;
+  animation-delay: 0.8s;
+}
+
+.cursor-blink {
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.spinner-700 {
+  animation: spin-smooth 700ms linear infinite;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tile-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(232, 255, 90, 0.04);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.tile-glow:hover::before {
+  opacity: 0.5;
+}
+
+.tile-glow-selected::before {
+  opacity: 1;
+}
+
+.type-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #4a4845;
+  font-family: var(--font-dm-mono), monospace;
+}

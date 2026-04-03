@@ -58,6 +58,7 @@ type CreateAgentResponse = {
     inftContractAddress: string;
     tokenUri: string;
     configRoot: string;
+    metadataRoot: string;
   };
 };
 
