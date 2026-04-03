@@ -1,0 +1,29 @@
+{
+  "name": "@twinnet/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "check:0g": "tsx scripts/check-0g.ts"
+  },
+  "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.1",
+    "@0glabs/0g-serving-broker": "^0.7.4",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/jwt": "^9.0.3",
+    "@worldcoin/idkit-core": "^4.0.16",
+    "dotenv": "^16.4.7",
+    "ethers": "6.13.1",
+    "fastify": "^5.2.1",
+    "viem": "^2.21.54",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
