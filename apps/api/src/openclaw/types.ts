@@ -14,6 +14,8 @@ export type ToolCallPayload = {
   arguments: Record<string, unknown>;
 };
 
+export type RagSource = { filename: string; hash: string };
+
 export type ExecutionStep = {
   kind: "reasoning" | "tool_call" | "tool_result" | "final";
   step: number;
@@ -61,4 +63,6 @@ export type RunAgentResult = {
   provider: "0g";
   /** Snapshot after turn (messages include this user/assistant exchange). */
   workingMemory: ToolContext["workingMemory"];
+  /** Training corpus chunks pulled from 0G for this turn (demo / audit). */
+  ragSources?: RagSource[];
 };

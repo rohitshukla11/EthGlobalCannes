@@ -59,12 +59,29 @@ export type AgentRecord = {
   agentType?: string;
   /** Latest OpenClaw memory head from ENS twinn.memoryHead (optional cache mirror) */
   ensMemoryHead?: string;
+  /** Latest training manifest root on 0G (verifiable corpus) */
+  trainingRoot?: string;
+  trainingDocCount?: number;
+  trainingUpdatedAt?: number;
+};
+
+export type TrainingDocumentRecord = {
+  id: string;
+  agentId: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  /** 0G Storage content root hash */
+  hash: string;
+  uploadedAt: number;
+  description?: string;
 };
 
 export type DatabaseShape = {
   agents: AgentRecord[];
   ensToAgentId: Record<string, string>;
   nullifierToWallet: Record<string, string>;
+  trainingDocs?: TrainingDocumentRecord[];
 };
 
 /** Public discovery row (local registry + optional 0G manifest) */

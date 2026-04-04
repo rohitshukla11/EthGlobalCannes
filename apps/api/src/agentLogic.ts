@@ -3,7 +3,8 @@ import { downloadFrom0G, uploadJsonTo0G } from "./storage0g.js";
 import { generateResponseWithFallback } from "./compute/providers.js";
 import { isOpenClawEnabled } from "./openclaw/config.js";
 import type { OpenClawConfig } from "./openclaw/types.js";
-import type { RunAgentResult } from "./openclaw/types.js";
+import type { RagSource, RunAgentResult } from "./openclaw/types.js";
+import { getTrainingRagForInference } from "./trainingData.js";
 
 export type AgentConfigEnvelope = {
   agentId?: string;
@@ -84,12 +85,16 @@ export async function runAgentTurnDetailed(
   target: AgentRecord,
   userMessage: string,
   caller?: AgentRecord | null
-): Promise<{ reply: string; provider: string }> {
+): Promise<{ reply: string; provider: string; ragSources?: RagSource[] }> {
   const cfg = await loadAgentConfig(target);
+  const training = await getTrainingRagForInference(target.id, userMessage);
   const rag = await buildRagContext(target);
   const callerBlock = caller
     ? `You are replying to another agent: ${caller.name} (${caller.expertise}).`
     : "You are replying to a human operator.";
+  const trainingBlock = training.context
+    ? `[TRAINING KNOWLEDGE — cite these sources in your response when relevant]\n${training.context}\n`
+    : "";
   const ragBlock = `Relevant memory and prior exchanges (retrieved from decentralized storage):
 ${rag || "(none yet)"}
 
@@ -99,19 +104,24 @@ Stay in character. Be concise and actionable.`;
 
 ${callerBlock}
 
+${trainingBlock}
 ${ragBlock}`
     : `You are a digital twin agent named "${cfg.name}".
 Expertise: ${cfg.expertise}
 Personality: ${cfg.personality}${sliderHints(cfg)}
 ${callerBlock}
 
+${trainingBlock}
 ${ragBlock}`;
   const messages = [
     { role: "system", content: system },
     { role: "user", content: userMessage },
   ];
   const { text, provider } = await generateResponseWithFallback(messages);
-  return { reply: text, provider };
+  if (training.sources.length) {
+    console.log(`[RAG] Injected ${training.sources.length} training docs for agent ${target.id}`);
+  }
+  return { reply: text, provider, ragSources: training.sources.length ? training.sources : undefined };
 }
 
 export async function runAgentTurn(
@@ -130,7 +140,7 @@ export async function persistMemorySnippet(agent: AgentRecord, snippet: object) 
 
 export type UnifiedTurnResult =
   | ({ mode: "openclaw" } & RunAgentResult)
-  | { mode: "legacy"; reply: string; provider: string };
+  | { mode: "legacy"; reply: string; provider: string; ragSources?: RagSource[] };
 
 /** OpenClaw when enabled in config; otherwise legacy single-shot completion (still may use 0G per compute chain). */
 export async function runUnifiedAgentTurn(
@@ -146,5 +156,5 @@ export async function runUnifiedAgentTurn(
     return { mode: "openclaw", ...r };
   }
   const r = await runAgentTurnDetailed(target, userMessage, caller);
-  return { mode: "legacy", reply: r.reply, provider: r.provider };
+  return { mode: "legacy", reply: r.reply, provider: r.provider, ragSources: r.ragSources };
 }

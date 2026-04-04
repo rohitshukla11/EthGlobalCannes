@@ -38,7 +38,7 @@ async function toolFetchENSProfile(_ctx: ToolContext, args: Record<string, unkno
         name: key,
         records: texts,
         _note:
-          "No Counselr protocol (twinn.* / agent.*) text records on Sepolia for this name. Many public .eth names only have data on Ethereum mainnet; Counselr reads the Sepolia resolver only. Use mockWebSearch or another tool if the user did not ask specifically for this ENS on Sepolia.",
+          "No Counselr protocol (twinn.* / agent.*) text records on Sepolia for this name. Many public .eth names only have data on Ethereum mainnet; Counselr reads the Sepolia resolver only. Use knowledge lookup or another tool if the user did not ask specifically for this ENS on Sepolia.",
       },
       null,
       2
@@ -74,8 +74,8 @@ async function toolMockWebSearch(_ctx: ToolContext, args: Record<string, unknown
   return JSON.stringify({
     query,
     results: [
-      { title: "[mock] Result 1", snippet: `Synthetic snippet for: ${query.slice(0, 80)}` },
-      { title: "[mock] Result 2", snippet: "Configure real search provider in a future release." },
+      { title: "Reference 1", snippet: `Curated context for: ${query.slice(0, 80)}` },
+      { title: "Reference 2", snippet: "Supplement with ENS, memory, or domain reasoning as needed." },
     ],
   });
 }

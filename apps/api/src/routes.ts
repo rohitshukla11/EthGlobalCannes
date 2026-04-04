@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import multipart from "@fastify/multipart";
 import { z } from "zod";
 import { isAddress } from "viem";
 import { buildRpContext, verifyWorldProof } from "./worldId.js";
@@ -12,6 +13,7 @@ import {
   setWalletForNullifier,
   getWalletForNullifier,
   updateAgent,
+  getTrainingDocs,
 } from "./db.js";
 import { uploadJsonTo0G, downloadFrom0G } from "./storage0g.js";
 import {
@@ -54,6 +56,13 @@ import {
 import { verifyAgentIntegrity } from "./integrity.js";
 import { agentRecordIsOpenClaw, listRowIsOpenClaw } from "./agentOpenClaw.js";
 import type { AgentRecord } from "./types.js";
+import type { RagSource } from "./openclaw/types.js";
+import {
+  uploadTrainingDocument,
+  deleteTrainingDocument,
+  getTrainingManifest,
+  fetchTrainingDocument,
+} from "./trainingData.js";
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
@@ -195,7 +204,23 @@ async function buildVersionsPayload(a: AgentRecord) {
   return { currentVersion, history: dedup };
 }
 
+function canMutateTraining(nullifier: string, agent: AgentRecord): boolean {
+  const w = getWalletForNullifier(nullifier);
+  return Boolean(w && w === agent.owner.toLowerCase());
+}
+
+function ragSourcesToLegacySteps(sources: RagSource[]) {
+  return sources.map((s, i) => ({
+    kind: "reasoning" as const,
+    step: i,
+    detail: `Fetching training doc: ${s.filename} · ${s.hash.slice(0, 10)}…`,
+    shortSummary: `Fetching training doc · ${s.filename}`,
+  }));
+}
+
 export async function registerRoutes(app: FastifyInstance) {
+  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
+
   app.get("/health", async () => ({
     ok: true,
     zg: {
@@ -496,7 +521,7 @@ export async function registerRoutes(app: FastifyInstance) {
         owner: e.owner,
         tokenId: e.tokenId,
         reputation: rep,
-        type: "digital-twin" as const,
+        type: "professional-advisor" as const,
         source: e.source ?? "local",
         verifiedHumanTwin,
         openClawAgent: listRowIsOpenClaw(local, e.source ?? "local"),
@@ -512,6 +537,7 @@ export async function registerRoutes(app: FastifyInstance) {
         advisorTone: local?.advisorTone ?? "",
         personalitySliders: local?.personalitySliders ?? null,
         pricing: local?.pricing ?? null,
+        trainingDocCount: local?.trainingDocCount ?? 0,
       };
     });
     if (sort === "reputation") {
@@ -642,6 +668,113 @@ export async function registerRoutes(app: FastifyInstance) {
     return { agent: publicAgent(a) };
   });
 
+  app.post("/agents/:id/training", { onRequest: [app.authenticate] }, async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const a = await getAgentResilientById(id);
+    if (!a) return reply.code(404).send({ error: "Not found" });
+    const { nullifier } = auth(req);
+    if (!canMutateTraining(nullifier, a)) {
+      return reply.code(403).send({ error: "Not authorized" });
+    }
+
+    let buffer: Buffer | null = null;
+    let uploadFilename = "";
+    let mimetype = "";
+    let description: string | undefined;
+
+    for await (const part of req.parts()) {
+      if (part.type === "file" && part.fieldname === "file") {
+        buffer = await part.toBuffer();
+        uploadFilename = part.filename || "upload";
+        mimetype = part.mimetype || "application/octet-stream";
+      } else if (part.type === "field" && part.fieldname === "description") {
+        description = String((part as { value?: string }).value ?? "").trim() || undefined;
+      }
+    }
+
+    if (!buffer) return reply.code(400).send({ error: "No file provided" });
+
+    const allowed = [
+      "application/pdf",
+      "text/plain",
+      "text/markdown",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+    if (!allowed.includes(mimetype)) {
+      return reply.code(400).send({
+        error: "File type not supported. Use PDF, TXT, MD, or DOCX.",
+      });
+    }
+
+    const doc = await uploadTrainingDocument(id, uploadFilename, mimetype, buffer, description);
+    const agent2 = (await getAgentResilientById(id)) ?? getAgentById(id);
+    if (!agent2) return reply.code(404).send({ error: "Not found" });
+
+    return reply.send({
+      doc,
+      manifestRoot: agent2.trainingRoot,
+      docCount: agent2.trainingDocCount,
+    });
+  });
+
+  app.get("/agents/:id/training/verify/:docId", async (req, reply) => {
+    const { id, docId } = req.params as { id: string; docId: string };
+    const docs = getTrainingDocs(id);
+    const doc = docs.find((d) => d.id === docId);
+    if (!doc) return reply.code(404).send({ error: "Doc not found" });
+
+    const content = await fetchTrainingDocument(id, doc.filename);
+    const reachable = content !== null;
+    const integrityOk = reachable;
+
+    const explorer = config.zgExplorerUrl.replace(/\/$/, "");
+    const hashPath = doc.hash.startsWith("0x") ? doc.hash : `0x${doc.hash}`;
+
+    return reply.send({
+      doc,
+      reachable,
+      integrityOk,
+      verifiedAt: new Date().toISOString(),
+      explorerUrl: `${explorer}/storage/${hashPath}`,
+    });
+  });
+
+  app.get("/agents/:id/training", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const docs = getTrainingDocs(id);
+    const manifest = await getTrainingManifest(id);
+    const agent = (await getAgentResilientById(id)) ?? getAgentById(id);
+    if (!agent) return reply.code(404).send({ error: "Not found" });
+
+    return reply.send({
+      docs,
+      manifest,
+      trainingRoot: agent.trainingRoot,
+      docCount: agent.trainingDocCount,
+      updatedAt: agent.trainingUpdatedAt,
+    });
+  });
+
+  app.delete("/agents/:id/training/:docId", { onRequest: [app.authenticate] }, async (req, reply) => {
+    const { id, docId } = req.params as { id: string; docId: string };
+    const a = await getAgentResilientById(id);
+    if (!a) return reply.code(404).send({ error: "Not found" });
+    const { nullifier } = auth(req);
+    if (!canMutateTraining(nullifier, a)) {
+      return reply.code(403).send({ error: "Not authorized" });
+    }
+
+    await deleteTrainingDocument(id, docId);
+    const updated = (await getAgentResilientById(id)) ?? getAgentById(id);
+    if (!updated) return reply.code(404).send({ error: "Not found" });
+
+    return reply.send({
+      success: true,
+      manifestRoot: updated.trainingRoot,
+      docCount: updated.trainingDocCount,
+    });
+  });
+
   app.get("/nft/metadata/:agentId", async (req, reply) => {
     const agentId = (req.params as { agentId: string }).agentId;
     const a = (await getAgentResilientById(agentId)) ?? getAgentById(agentId);
@@ -706,18 +839,35 @@ export async function registerRoutes(app: FastifyInstance) {
 
     let replyText: string;
     let inferenceProvider: string;
-    let executionLog: { mode: string; steps: unknown[]; toolsUsed: unknown[] } | undefined;
+    let executionLog:
+      | { mode: string; steps: unknown[]; toolsUsed: unknown[]; ragSources?: RagSource[] }
+      | undefined;
+    let ragSourcesOut: RagSource[] = [];
     let tall: Awaited<ReturnType<typeof runUnifiedAgentTurn>>;
     try {
       tall = await runUnifiedAgentTurn(target, message, caller);
+      ragSourcesOut = tall.ragSources ?? [];
       if (tall.mode === "openclaw") {
         replyText = tall.reply;
         inferenceProvider = tall.provider;
-        executionLog = { mode: "openclaw", steps: tall.steps, toolsUsed: tall.toolsUsed };
+        executionLog = {
+          mode: "openclaw",
+          steps: tall.steps,
+          toolsUsed: tall.toolsUsed,
+          ragSources: ragSourcesOut,
+        };
       } else {
         replyText = tall.reply;
         inferenceProvider = tall.provider;
-        executionLog = undefined;
+        executionLog =
+          ragSourcesOut.length > 0
+            ? {
+                mode: "legacy",
+                steps: ragSourcesToLegacySteps(ragSourcesOut),
+                toolsUsed: [],
+                ragSources: ragSourcesOut,
+              }
+            : undefined;
       }
     } catch (e) {
       const t2 = getAgentById(target.id) ?? target;
@@ -817,6 +967,7 @@ export async function registerRoutes(app: FastifyInstance) {
       attestationRoot,
       executionLog: executionLog ?? null,
       openClaw: tall.mode === "openclaw",
+      ragSources: ragSourcesOut,
     };
   });
 
@@ -955,7 +1106,7 @@ function publicAgent(a: AgentRecord) {
     configVersion: a.configVersion ?? 1,
     reputation: a.reputation,
     createdAt: a.createdAt,
-    type: "digital-twin",
+    type: "professional-advisor",
     pricing: a.pricing ?? null,
     personalitySliders: a.personalitySliders ?? null,
     verifiedHumanTwin: Boolean(a.ensHumanVerifiedHint && a.tokenId > 0),
@@ -963,5 +1114,8 @@ function publicAgent(a: AgentRecord) {
     openClawAgent,
     toolsEnabled: openClawAgent ? [...DEFAULT_OPENCLAW_TOOLS] : [],
     memoryHead: a.ensMemoryHead ?? null,
+    trainingRoot: a.trainingRoot ?? null,
+    trainingDocCount: a.trainingDocCount ?? 0,
+    trainingUpdatedAt: a.trainingUpdatedAt ?? null,
   };
 }

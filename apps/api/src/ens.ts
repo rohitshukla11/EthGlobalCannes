@@ -364,3 +364,18 @@ export async function tryWriteEnsIndexManifest(indexRoot: string): Promise<boole
   if (!name || !indexRoot) return false;
   return setTexts(name, [["twinn.manifest", indexRoot]]);
 }
+
+/** Best-effort: publish verifiable training manifest pointer on the agent's ENS name. */
+export async function tryWriteCounselrTrainingRecords(
+  fullName: string,
+  opts: { trainingRoot: string; docCount: number }
+): Promise<boolean> {
+  const root = opts.trainingRoot.trim();
+  if (!root) return false;
+  const day = new Date().toISOString().split("T")[0]!;
+  return setTexts(fullName, [
+    ["counselr.trainingRoot", root],
+    ["counselr.trainingDocs", String(opts.docCount)],
+    ["counselr.trainingUpdated", day],
+  ]);
+}

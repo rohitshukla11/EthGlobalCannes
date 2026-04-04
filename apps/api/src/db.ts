@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AgentRecord, DatabaseShape } from "./types.js";
+import type { AgentRecord, DatabaseShape, TrainingDocumentRecord } from "./types.js";
 import { config } from "./config.js";
 
 const filePath = () => path.join(config.dataDir, "registry.json");
@@ -11,7 +11,7 @@ function load(): DatabaseShape {
     const raw = fs.readFileSync(filePath(), "utf-8");
     return JSON.parse(raw) as DatabaseShape;
   } catch {
-    return { agents: [], ensToAgentId: {}, nullifierToWallet: {} };
+    return { agents: [], ensToAgentId: {}, nullifierToWallet: {}, trainingDocs: [] };
   }
 }
 
@@ -24,6 +24,7 @@ let cache: DatabaseShape | null = null;
 
 export function getDb(): DatabaseShape {
   if (!cache) cache = load();
+  if (!cache.trainingDocs) cache.trainingDocs = [];
   return cache;
 }
 
@@ -98,5 +99,28 @@ export function clearAllAgents() {
   for (const k of Object.keys(db.ensToAgentId)) {
     delete db.ensToAgentId[k];
   }
+  db.trainingDocs = [];
   persist();
+}
+
+export function addTrainingDoc(doc: TrainingDocumentRecord) {
+  const db = getDb();
+  db.trainingDocs!.push(doc);
+  persist();
+}
+
+export function removeTrainingDoc(agentId: string, docId: string) {
+  const db = getDb();
+  const list = db.trainingDocs!;
+  const i = list.findIndex((d) => d.agentId === agentId && d.id === docId);
+  if (i >= 0) {
+    list.splice(i, 1);
+    persist();
+  }
+}
+
+export function getTrainingDocs(agentId: string): TrainingDocumentRecord[] {
+  return (getDb().trainingDocs ?? [])
+    .filter((d) => d.agentId === agentId)
+    .sort((a, b) => b.uploadedAt - a.uploadedAt);
 }

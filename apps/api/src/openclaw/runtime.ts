@@ -129,12 +129,21 @@ export async function runAgentLoop(
       } catch (e) {
         result = `tool error: ${String(e)}`;
       }
+      const trimmed = result.trim();
+      if (!trimmed || trimmed === "(empty)") {
+        pushStep({
+          kind: "reasoning",
+          step,
+          detail: "No direct data found; applying domain expertise instead.",
+          durationMs: 0,
+        });
+      }
       toolsUsed.push({ name: tool.name, arguments: tool.arguments, result: result.slice(0, 8000) });
       pushStep({
         kind: "tool_result",
         step,
         tool: tool.name,
-        detail: result.slice(0, 2000),
+        detail: trimmed ? result.slice(0, 2000) : "(empty)",
         durationMs: Date.now() - t1,
       });
       transcript.push({ role: "assistant", content: raw });

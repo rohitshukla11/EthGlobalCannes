@@ -9,13 +9,15 @@
     "start": "node dist/index.js",
     "check:0g": "tsx scripts/check-0g.ts",
     "resolve:ens": "tsx scripts/resolve-ens.ts",
-    "clear-agents": "tsx scripts/clear-agents.ts"
+    "clear-agents": "tsx scripts/clear-agents.ts",
+    "seed-training": "tsx scripts/seed-training-data.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.1",
     "@0glabs/0g-serving-broker": "^0.7.4",
     "@fastify/cors": "^10.0.2",
     "@fastify/jwt": "^9.0.3",
+    "@fastify/multipart": "^9.0.3",
     "@worldcoin/idkit-core": "^4.0.16",
     "dotenv": "^16.4.7",
     "ethers": "6.13.1",

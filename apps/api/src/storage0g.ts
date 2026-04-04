@@ -39,6 +39,12 @@ export async function uploadJsonTo0G(payload: object | string): Promise<string> 
 
 /** Download by root hash; returns UTF-8 string. */
 export async function downloadFrom0G(rootHash: string): Promise<string> {
+  const buf = await downloadBufferFrom0G(rootHash);
+  return buf.toString("utf-8");
+}
+
+/** Download by root hash; returns raw bytes. */
+export async function downloadBufferFrom0G(rootHash: string): Promise<Buffer> {
   const ind = getIndexer();
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "counselr-0g-"));
   const out = path.join(dir, "blob");
@@ -46,5 +52,18 @@ export async function downloadFrom0G(rootHash: string): Promise<string> {
   if (dlErr) throw new Error(`0G download: ${dlErr}`);
   const buf = await fs.promises.readFile(out);
   await fs.promises.rm(dir, { recursive: true, force: true });
-  return buf.toString("utf-8");
+  return buf;
+}
+
+/** Upload arbitrary bytes to 0G Storage; returns root hash (hex). */
+export async function uploadBufferTo0G(buffer: Buffer): Promise<string> {
+  const mem = new MemData(Array.from(buffer));
+  const [tree, treeErr] = await mem.merkleTree();
+  if (treeErr) throw new Error(`0G merkleTree: ${treeErr}`);
+  const ind = getIndexer();
+  const [tx, err] = await ind.upload(mem, config.zgRpc, getSigner() as never);
+  if (err) throw new Error(`0G upload: ${err}`);
+  if ("rootHash" in tx) return tx.rootHash as string;
+  if ("rootHashes" in tx && tx.rootHashes.length) return tx.rootHashes[0] as string;
+  throw new Error("0G upload: unexpected tx shape");
 }
