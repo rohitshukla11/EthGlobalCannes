@@ -82,8 +82,9 @@ export function StepWorldId({ onVerified }: Props) {
                 type="button"
                 disabled={loadingChallenge}
                 onClick={() => loadChallenge().catch(() => {})}
-                whileHover={{ y: -2 }}
+                whileHover={{ y: -1 }}
                 whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
                 className="inline-flex h-11 items-center gap-2 rounded-control bg-accent px-7 font-mono text-[12px] font-medium tracking-[0.08em] text-void transition-colors hover:bg-[#F0FF70] disabled:opacity-50"
                 aria-label="Verify with World ID"
               >
@@ -144,21 +145,19 @@ export function StepWorldId({ onVerified }: Props) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
-                className="mt-6 rounded-control border border-[rgba(74,222,128,0.3)] bg-[rgba(74,222,128,0.04)] px-4 py-3 font-mono text-[12px]"
+                className="mt-6 rounded-[var(--radius-md)] border border-[rgba(74,222,128,0.25)] bg-[var(--success-dim)] px-[18px] py-4 font-mono"
               >
-                <p className="flex items-center gap-2 text-success">
-                  <span className="size-2 rounded-full bg-success" aria-hidden />
+                <p className="flex items-center gap-2 font-mono text-[13px] font-medium text-[var(--text-0)]">
+                  <span className="size-2 shrink-0 rounded-full bg-[var(--success)]" aria-hidden />
                   Human verified
                 </p>
-                <p className="mt-2 text-tertiary">
+                <p className="mt-2 font-mono text-xs font-normal text-[var(--text-1)]">
                   Anonymous ID: {truncateMiddle(sub, 6, 4)}
                 </p>
-                <p className="mt-2 max-w-[320px] text-[11px] leading-relaxed text-tertiary/90">
-                  A stable, private handle from your proof—one per person for this step, not your name or wallet. Alter keeps it only in your session token.
-                </p>
                 {verifiedAt ? (
-                  <p className="mt-1 text-tertiary">
-                    timestamp: {new Date(verifiedAt).toISOString().replace("T", " ").slice(0, 16)} UTC
+                  <p className="mt-2 font-mono text-[11px] font-normal text-[var(--text-2)]">
+                    {new Date(verifiedAt).toISOString().slice(0, 10)} ·{" "}
+                    {new Date(verifiedAt).toISOString().slice(11, 16)} UTC
                   </p>
                 ) : null}
               </motion.div>

@@ -156,14 +156,11 @@ export function DeploymentProofsPanel({
         >
           Marketplace
         </Link>
-        <Link href="/console" className="rounded-control border border-mid bg-void px-3 py-2 font-mono text-[10px] text-accent no-underline hover:border-accent">
-          Console
-        </Link>
-        <Link href="/verify" className="rounded-control border border-mid bg-void px-3 py-2 font-mono text-[10px] text-accent no-underline hover:border-accent">
-          Verify guide
-        </Link>
-        <Link href="/chain" className="rounded-control border border-mid bg-void px-3 py-2 font-mono text-[10px] text-accent no-underline hover:border-accent">
-          Chain info
+        <Link
+          href={`/agent/${encodeURIComponent(agent.id)}/interact`}
+          className="rounded-control border border-mid bg-void px-3 py-2 font-mono text-[10px] text-accent no-underline hover:border-accent"
+        >
+          Consult
         </Link>
       </div>
     </div>

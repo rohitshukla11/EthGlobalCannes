@@ -10,6 +10,11 @@ import { useAccount } from "wagmi";
 import { useCommandLog } from "@/components/command-log/CommandLogProvider";
 import { PROFESSION_OPTIONS, type ProfessionValue } from "@/lib/advisorUi";
 import { DEMO_ADVISOR_TEMPLATES } from "@/lib/demoAdvisorTemplates";
+import { AdvisorMarketplaceCard } from "@/components/agents/AdvisorMarketplaceCard";
+import { UnderlineInput } from "@/components/ui/UnderlineInput";
+import { UnderlineTextarea } from "@/components/ui/UnderlineTextarea";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { formatConsultationPrice } from "@/lib/advisorUi";
 
 function slugName(name: string): string {
   return name
@@ -53,15 +58,12 @@ type Props = {
 };
 
 const TONE_OPTIONS = [
-  { value: "formal" as const, label: "Formal", hint: "Precise, structured" },
-  { value: "friendly" as const, label: "Friendly", hint: "Warm, approachable" },
-  { value: "analytical" as const, label: "Analytical", hint: "Data-led, tradeoffs" },
+  { value: "formal" as const, label: "Formal" },
+  { value: "friendly" as const, label: "Friendly" },
+  { value: "analytical" as const, label: "Analytical" },
 ];
 
-const PRICE_OPTIONS = [
-  { value: "free" as const, label: "Free", wei: "0" },
-  { value: "point01" as const, label: "0.01 ETH / consultation", wei: "10000000000000000" },
-];
+const PAID_WEI = "10000000000000000";
 
 export function StepCreate({ onMinted, advisorTemplateId = null }: Props) {
   const { push } = useCommandLog();
@@ -73,7 +75,7 @@ export function StepCreate({ onMinted, advisorTemplateId = null }: Props) {
   const [experience, setExperience] = useState("");
   const [pitch, setPitch] = useState("");
   const [advisorTone, setAdvisorTone] = useState<"formal" | "friendly" | "analytical">("friendly");
-  const [priceTier, setPriceTier] = useState<"free" | "point01">("free");
+  const [isFree, setIsFree] = useState(true);
   const [minting, setMinting] = useState(false);
   const [phaseLabel, setPhaseLabel] = useState("");
   const [success, setSuccess] = useState(false);
@@ -108,6 +110,13 @@ export function StepCreate({ onMinted, advisorTemplateId = null }: Props) {
     [advisorTone]
   );
 
+  const pricingWei = isFree ? "0" : PAID_WEI;
+  const previewPriceLabel = formatConsultationPrice({
+    pricePerRequest: pricingWei,
+    currency: "eth-wei",
+  });
+  const previewIsFree = previewPriceLabel === "Free";
+
   const canMint =
     name.trim().length > 0 &&
     specialization.trim().length > 0 &&
@@ -131,17 +140,15 @@ export function StepCreate({ onMinted, advisorTemplateId = null }: Props) {
       return;
     }
 
-    const pricingWei = PRICE_OPTIONS.find((p) => p.value === priceTier)?.wei ?? "0";
-
     setErr(null);
     setMinting(true);
     setSuccess(false);
     setMintReceipt(null);
 
     const phases: { label: string; ms: number }[] = [
-      { label: "SIGNING...", ms: 500 },
-      { label: "WRITING TO 0G STORAGE...", ms: 1000 },
-      { label: "MINTING iNFT...", ms: 1200 },
+      { label: "VERIFYING IDENTITY...", ms: 500 },
+      { label: "UPLOADING TO 0G STORAGE...", ms: 1000 },
+      { label: "MINTING iNFT ON-CHAIN...", ms: 1200 },
       { label: "UPDATING ENS...", ms: 800 },
     ];
 
@@ -185,212 +192,228 @@ export function StepCreate({ onMinted, advisorTemplateId = null }: Props) {
     }
   }
 
+  const tileOptions = PROFESSION_OPTIONS;
+
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[700px] flex-col py-4">
-      <div className="mt-2 space-y-8">
-        <label className="block">
-          <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">Display name</span>
-          <input
+    <div className="flex w-full flex-col gap-12 pb-8 lg:flex-row lg:items-start lg:gap-10">
+      <div className="min-w-0 flex-1 lg:max-w-[58%]">
+        <p className="font-mono text-[10px] font-normal uppercase tracking-[0.12em] text-[var(--text-2)]">CREATE</p>
+        <h2 className="mt-2 font-display text-4xl font-extrabold leading-tight text-[var(--text-0)]">
+          Publish your expertise
+        </h2>
+        <p className="mt-3 max-w-[440px] font-mono text-[13px] font-normal leading-relaxed text-[var(--text-1)]">
+          Train an AI on your knowledge. Set a price. Earn per consultation. You own it — on-chain.
+        </p>
+
+        <div className="mt-10 space-y-7">
+          <div>
+            <p className="mb-2 font-mono text-[10px] font-normal uppercase tracking-[0.1em] text-[var(--text-2)]">
+              Profession
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {tileOptions.map((o) => {
+                const isThis = professionChoice === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setProfessionChoice(o.value as ProfessionValue | "Custom")}
+                    className={`relative flex h-[52px] items-center gap-2.5 rounded-[var(--radius-sm)] border px-3.5 text-left transition-all duration-150 ${
+                      isThis
+                        ? "border-[rgba(232,255,90,0.5)] bg-[var(--accent-dim)] text-[var(--text-0)]"
+                        : "border-[var(--border-1)] bg-[var(--bg-1)] text-[var(--text-1)] hover:border-[var(--border-2)] hover:bg-[var(--bg-2)]"
+                    }`}
+                  >
+                    <span className="text-lg" aria-hidden>
+                      {o.emoji}
+                    </span>
+                    <span className="font-mono text-[13px] font-normal">{o.label}</span>
+                    {isThis ? (
+                      <span className="absolute right-2 top-2 size-1.5 rounded-full bg-[var(--accent)]" aria-hidden />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+            {professionChoice === "Custom" ? (
+              <div className="mt-4">
+                <UnderlineInput
+                  label="CUSTOM TITLE"
+                  value={customProfession}
+                  onChange={(e) => setCustomProfession(e.target.value)}
+                  placeholder="e.g. Fractional CFO"
+                  autoComplete="off"
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <UnderlineInput
+            label="DISPLAY NAME"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Jordan or jordan.eth"
-            className="w-full border-0 border-b border-dim bg-transparent py-2 font-mono text-[15px] text-primary placeholder:text-tertiary focus:border-accent focus:outline-none"
             autoComplete="off"
-            aria-label="Advisor display name"
           />
-          <p className="mt-2 font-mono text-[10px] leading-relaxed text-tertiary">
-            Sepolia ENS checked: <span className="text-secondary">{ensPreview || "—"}</span>
-            <span className="mt-1 block">
-              Address record must match your linked wallet. Use a full <span className="text-secondary">.eth</span> or a
-              short name → <span className="text-secondary">slug.persona.eth</span>.
-            </span>
+          <p className="-mt-4 font-mono text-[11px] font-normal text-[var(--text-2)]">
+            ENS preview: <span className="text-[var(--text-1)]">{ensPreview || "—"}</span>
           </p>
-        </label>
 
-        <div className="grid gap-6 sm:grid-cols-2">
-          <label className="block sm:col-span-1">
-            <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">Profession</span>
-            <select
-              value={professionChoice}
-              onChange={(e) => setProfessionChoice(e.target.value as ProfessionValue | "Custom")}
-              className="h-10 w-full rounded-control border border-mid bg-black/50 px-3 font-mono text-[13px] text-primary focus:border-accent focus:outline-none"
-            >
-              {PROFESSION_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.emoji} {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {professionChoice === "Custom" ? (
-            <label className="block sm:col-span-1">
-              <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">Custom title</span>
-              <input
-                value={customProfession}
-                onChange={(e) => setCustomProfession(e.target.value)}
-                placeholder="e.g. Fractional CFO"
-                className="h-10 w-full rounded-control border border-mid bg-black/50 px-3 font-mono text-[13px] text-primary placeholder:text-tertiary focus:border-accent focus:outline-none"
-              />
-            </label>
-          ) : null}
-        </div>
-
-        <label className="block">
-          <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">Specialization</span>
-          <input
+          <UnderlineInput
+            label="SPECIALIZATION"
             value={specialization}
             onChange={(e) => setSpecialization(e.target.value)}
             placeholder='e.g. "Crypto law", "DeFi trading"'
-            className="w-full rounded-control border border-mid bg-black/50 px-3 py-2.5 font-mono text-[13px] text-primary placeholder:text-tertiary focus:border-accent focus:outline-none"
+            autoComplete="off"
           />
-        </label>
 
-        <label className="block">
-          <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">Experience & credibility</span>
-          <textarea
+          <UnderlineTextarea
+            label="EXPERIENCE & CREDIBILITY"
             value={experience}
             onChange={(e) => setExperience(e.target.value)}
             placeholder='e.g. "5+ years", "Big4 + Web3 startups"'
             rows={2}
-            className="w-full resize-y rounded-control border border-mid bg-black/50 px-3 py-2.5 font-mono text-[13px] text-primary placeholder:text-tertiary focus:border-accent focus:outline-none"
           />
-        </label>
 
-        <label className="block">
-          <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">Short pitch</span>
-          <textarea
+          <UnderlineTextarea
+            label="YOUR PITCH"
             value={pitch}
             onChange={(e) => setPitch(e.target.value)}
-            placeholder='One line, e.g. "Helping startups stay compliant in Web3"'
-            rows={2}
-            className="w-full resize-y rounded-control border border-mid bg-black/50 px-3 py-2.5 font-mono text-[13px] text-primary placeholder:text-tertiary focus:border-accent focus:outline-none"
+            placeholder="In one sentence, what makes you the expert..."
+            rows={3}
           />
-        </label>
 
-        <div>
-          <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">Tone / style</span>
-          <div className="flex flex-wrap gap-2">
-            {TONE_OPTIONS.map((o) => (
+          <div>
+            <p className="mb-2 font-mono text-[10px] font-normal uppercase tracking-[0.1em] text-[var(--text-2)]">
+              Tone
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {TONE_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setAdvisorTone(o.value)}
+                  className={`h-8 rounded-full px-4 font-mono text-[13px] font-normal transition-all duration-150 ${
+                    advisorTone === o.value
+                      ? "bg-[var(--accent)] text-[var(--bg-0)]"
+                      : "border border-[var(--border-1)] text-[var(--text-1)] hover:border-[var(--border-2)]"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 font-mono text-[10px] font-normal uppercase tracking-[0.1em] text-[var(--text-2)]">
+              Pricing
+            </p>
+            <div className="flex flex-wrap items-center gap-4">
               <button
-                key={o.value}
                 type="button"
-                onClick={() => setAdvisorTone(o.value)}
-                className={
-                  advisorTone === o.value
-                    ? "rounded-full border border-accent bg-[rgba(232,255,90,0.12)] px-4 py-2 text-left font-mono text-[12px] text-accent"
-                    : "rounded-full border border-dim px-4 py-2 text-left font-mono text-[12px] text-secondary transition-colors hover:border-mid"
-                }
+                role="switch"
+                aria-checked={!isFree}
+                onClick={() => setIsFree((f) => !f)}
+                className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-150 ${
+                  isFree ? "bg-[var(--bg-3)]" : "bg-[var(--accent)]"
+                }`}
               >
-                <span className="block font-medium">{o.label}</span>
-                <span className="block text-[10px] text-tertiary">{o.hint}</span>
+                <span
+                  className={`absolute top-0.5 size-3.5 rounded-full bg-[var(--text-0)] transition-transform duration-150 ease-out ${
+                    isFree ? "left-0.5" : "left-[calc(100%-1rem)]"
+                  }`}
+                />
               </button>
-            ))}
+              <span className="font-mono text-[13px] text-[var(--text-1)]">{isFree ? "Free" : "Paid"}</span>
+              {!isFree ? (
+                <span className="font-mono text-sm text-[var(--text-0)]">
+                  <span className="text-[var(--text-2)]">$</span>0.01 ETH / consult
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-2 font-mono text-[11px] font-normal text-[var(--text-2)]">
+              Charged per consultation via Arc USDC
+            </p>
           </div>
         </div>
 
-        <label className="block">
-          <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">
-            Price per consultation (placeholder)
-          </span>
-          <select
-            value={priceTier}
-            onChange={(e) => setPriceTier(e.target.value as "free" | "point01")}
-            className="h-10 w-full max-w-md rounded-control border border-mid bg-black/50 px-3 font-mono text-[13px] text-primary focus:border-accent focus:outline-none"
-          >
-            {PRICE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <p className="mt-2 font-mono text-[10px] text-tertiary">
-            Stored with your advisor for marketplace display. On-chain settlement can wire later.
-          </p>
-        </label>
-      </div>
-
-      <div className="mt-14 flex items-center gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-ui border border-[rgba(232,255,90,0.3)] font-mono text-[14px] text-accent">
-          CR
-        </div>
-        <div className="min-w-0 flex-1">
+        <div className="mt-10">
           <AnimatePresence mode="wait">
             {success ? (
               <motion.div
                 key="ok"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex h-12 items-center justify-center rounded-control bg-[rgba(74,222,128,0.12)] font-mono text-[12px] font-medium tracking-[0.1em] text-success"
+                className="flex h-[52px] items-center justify-center rounded-[var(--radius-sm)] bg-[var(--success-dim)] font-mono text-[13px] font-medium tracking-[0.1em] text-[var(--success)]"
               >
                 ADVISOR LIVE
               </motion.div>
             ) : (
-              <motion.button
-                key="mint"
-                type="button"
-                disabled={!canMint || minting}
-                onClick={() => runMint().catch(() => {})}
-                className={`flex h-12 w-full items-center justify-center gap-2 rounded-control font-mono text-[12px] font-medium tracking-[0.1em] transition-colors ${
-                  canMint && !minting
-                    ? "bg-accent text-void hover:bg-[#F0FF70]"
-                    : "cursor-not-allowed bg-white/[0.06] text-tertiary"
-                }`}
-              >
-                {minting ? (
-                  <>
-                    <svg className="spinner-700 size-4 text-void" viewBox="0 0 24 24" fill="none" aria-hidden>
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="1"
-                        strokeDasharray="31 40"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={phaseLabel || "…"}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.15 }}
-                        className="truncate"
-                      >
-                        {phaseLabel || "…"}
-                      </motion.span>
-                    </AnimatePresence>
-                  </>
-                ) : (
-                  "PUBLISH ADVISOR"
-                )}
-              </motion.button>
+              <motion.div key="mint" initial={false}>
+                <PrimaryButton
+                  label={minting ? phaseLabel || "…" : "PUBLISH ADVISOR →"}
+                  onClick={() => runMint().catch(() => {})}
+                  disabled={!canMint || minting}
+                  loading={minting}
+                />
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
-      </div>
-      {err ? <p className="mt-4 font-mono text-[13px] text-error">{err}</p> : null}
+        {err ? <p className="mt-4 font-mono text-[13px] text-[var(--error)]">{err}</p> : null}
 
-      {success && mintReceipt ? (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          className="mt-10 space-y-4"
-        >
-          <DeploymentProofsPanel
-            agent={mintReceipt.agent}
-            deployment={mintReceipt.deployment}
-            ensMetadataWritten={mintReceipt.ensMetadataWritten}
-            showDeepLink
-          />
-          <p className="font-mono text-[10px] leading-relaxed text-tertiary/90">
-            Your advisor appears in <span className="text-secondary">Explore Advisors</span>. Consult from{" "}
-            <span className="text-secondary">Console</span> — OpenClaw + 0G memory each session.
-          </p>
-        </motion.div>
-      ) : null}
+        {success && mintReceipt ? (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="mt-10 space-y-4"
+          >
+            <DeploymentProofsPanel
+              agent={mintReceipt.agent}
+              deployment={mintReceipt.deployment}
+              ensMetadataWritten={mintReceipt.ensMetadataWritten}
+              showDeepLink
+            />
+          </motion.div>
+        ) : null}
+      </div>
+
+      <div className="w-full shrink-0 lg:sticky lg:top-12 lg:max-w-[42%]">
+        <p className="mb-3 font-mono text-[10px] font-normal uppercase tracking-[0.1em] text-[var(--text-2)]">PREVIEW</p>
+        <AdvisorMarketplaceCard
+          preview
+          variant="grid"
+          name={name.trim()}
+          profession={resolvedProfession}
+          specialization={specialization.trim()}
+          experience={experience.trim()}
+          pitch={pitch.trim()}
+          verified={false}
+          priceLabel={previewPriceLabel}
+          isFree={previewIsFree}
+        />
+
+        <p className="mb-3 mt-10 font-mono text-[10px] font-normal uppercase tracking-[0.1em] text-[var(--text-2)]">
+          AFTER YOU PUBLISH
+        </p>
+        <ol className="space-y-2.5">
+          {[
+            "Persona JSON → 0G Storage (your knowledge)",
+            "iNFT minted → 0G Galileo Testnet",
+            "ENS name → points to your advisor",
+            "Listed in marketplace → clients can consult",
+          ].map((line, i) => (
+            <li key={line} className="flex gap-3">
+              <span className="w-6 shrink-0 font-mono text-[10px] text-[var(--text-2)]">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className="font-mono text-xs font-normal text-[var(--text-1)]">{line}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }

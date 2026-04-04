@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiGet, apiPost } from "@/lib/api";
 import { shortenRoot } from "@/lib/formatRoot";
 import type {
@@ -8,17 +10,25 @@ import type {
   DelegateResponse,
   ExecutionLogPayload,
   PublicAgent,
+  TrainingDocument,
 } from "@/lib/agentTypes";
 import { ExecutionLogViewer } from "./ExecutionLogViewer";
-import { MemoryUpdateBadge } from "./MemoryUpdateBadge";
-import Link from "next/link";
-import { useCommandLog } from "@/components/command-log/CommandLogProvider";
+import { MarkdownBody } from "./MarkdownBody";
+import { useCommandLog, formatTime } from "@/components/command-log/CommandLogProvider";
 import {
   formatConsultationPrice,
   formatProfessionLabel,
   isWeb3ArchitectProfession,
   professionEmoji,
 } from "@/lib/advisorUi";
+import { professionBadgeVariant } from "@/lib/professionBadgeVariant";
+import { Badge } from "@/components/ui/Badge";
+import { ProfessionGlyph } from "@/components/ui/ProfessionGlyph";
+import { HashDisplay } from "@/components/ui/HashDisplay";
+import { SectionLabel } from "@/components/ui/SectionLabel";
+import { GhostButton } from "@/components/ui/GhostButton";
+import { UnderlineInput } from "@/components/ui/UnderlineInput";
+import { contentFingerprint } from "@/lib/contentFingerprint";
 
 type UserMsg = { role: "user"; text: string };
 
@@ -39,21 +49,46 @@ type Props = {
   initialEns?: string;
 };
 
+type TrainingPayload = {
+  docs: TrainingDocument[];
+  docCount?: number;
+  manifest?: { totalSizeBytes: number };
+  trainingRoot?: string | null;
+};
+
+type Receipt = {
+  turn: number;
+  qFp: string;
+  aFp: string;
+  memBefore: string | null;
+  memAfter: string | null;
+  at: string;
+};
+
 function TypingDots() {
   return (
-    <span className="inline-flex gap-0.5 font-mono text-[12px] text-accent" aria-live="polite">
+    <span className="inline-flex gap-0.5 font-mono text-[12px] text-[var(--accent)]" aria-live="polite">
       <span className="cursor-blink">▍</span>
       <span className="animate-pulse">thinking</span>
     </span>
   );
 }
 
+function docTypeBadge(filename: string): { label: string; cls: string } {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".pdf")) return { label: "PDF", cls: "bg-[rgba(245,158,11,0.15)] text-[#FBBF24]" };
+  if (lower.endsWith(".md")) return { label: "MD", cls: "bg-[rgba(56,189,248,0.12)] text-[#38BDF8]" };
+  return { label: "TXT", cls: "bg-[rgba(45,212,191,0.12)] text-[#5EEAD4]" };
+}
+
 export function AgentConsole({ initialEns = "" }: Props) {
-  const { push } = useCommandLog();
+  const { push, lines } = useCommandLog();
   const [targetEns, setTargetEns] = useState(initialEns);
   const [agent, setAgent] = useState<PublicAgent | null>(null);
   const [liveMemoryHead, setLiveMemoryHead] = useState<string | null>(null);
+  const [memoryFlash, setMemoryFlash] = useState(false);
   const [agentLoadErr, setAgentLoadErr] = useState<string | null>(null);
+  const [training, setTraining] = useState<TrainingPayload | null>(null);
 
   const [delegateMode, setDelegateMode] = useState(false);
   const [fromAgentEns, setFromAgentEns] = useState("");
@@ -62,6 +97,8 @@ export function AgentConsole({ initialEns = "" }: Props) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const turnRef = useRef(0);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -75,7 +112,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
     if (agent && isWeb3ArchitectProfession(agent.profession)) {
       return 'e.g. "Design a token for my DeFi lending platform"';
     }
-    return 'Ask for advice (e.g. "What legal risks should I consider before launching a token?")';
+    return "Ask for advice...";
   }, [agent]);
 
   const loadAgent = useCallback(async () => {
@@ -83,6 +120,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
       setAgent(null);
       setLiveMemoryHead(null);
       setAgentLoadErr(null);
+      setTraining(null);
       return;
     }
     setAgentLoadErr(null);
@@ -95,6 +133,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
     } catch {
       setAgent(null);
       setLiveMemoryHead(null);
+      setTraining(null);
       setAgentLoadErr("Profile not in local registry — you can still try messaging (API may resolve via ENS).");
     }
   }, [normalizedEns]);
@@ -104,8 +143,33 @@ export function AgentConsole({ initialEns = "" }: Props) {
   }, [loadAgent]);
 
   useEffect(() => {
+    if (!agent?.id) {
+      setTraining(null);
+      return;
+    }
+    let cancelled = false;
+    apiGet<TrainingPayload>(`/agents/${encodeURIComponent(agent.id)}/training`)
+      .then((data) => {
+        if (!cancelled) setTraining(data);
+      })
+      .catch(() => {
+        if (!cancelled) setTraining(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agent?.id]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pending]);
+
+  useEffect(() => {
+    if (!liveMemoryHead) return;
+    setMemoryFlash(true);
+    const t = window.setTimeout(() => setMemoryFlash(false), 600);
+    return () => clearTimeout(t);
+  }, [liveMemoryHead]);
 
   async function send() {
     const text = input.trim();
@@ -121,6 +185,8 @@ export function AgentConsole({ initialEns = "" }: Props) {
     setMessages((m) => [...m, { role: "user", text }]);
     setPending(true);
 
+    const qFp = await contentFingerprint(text);
+
     try {
       if (delegateMode) {
         const fromE = fromAgentEns.trim().toLowerCase();
@@ -134,6 +200,17 @@ export function AgentConsole({ initialEns = "" }: Props) {
           fromAgentENS: fromE,
           toAgentENS: ens,
           message: text,
+        });
+        const aFp = await contentFingerprint(res.reply);
+        turnRef.current += 1;
+        const nextHead = res.memoryRoot ?? null;
+        setReceipt({
+          turn: turnRef.current,
+          qFp,
+          aFp,
+          memBefore: liveMemoryHead,
+          memAfter: nextHead,
+          at: new Date().toISOString(),
         });
         setMessages((m) => [
           ...m,
@@ -152,6 +229,17 @@ export function AgentConsole({ initialEns = "" }: Props) {
           targetEns: ens,
           message: text,
         });
+        const aFp = await contentFingerprint(res.reply);
+        turnRef.current += 1;
+        const nextHead = res.memoryRootAfter ?? res.memoryRoot ?? null;
+        setReceipt({
+          turn: turnRef.current,
+          qFp,
+          aFp,
+          memBefore: res.memoryRootBefore ?? liveMemoryHead,
+          memAfter: nextHead,
+          at: new Date().toISOString(),
+        });
         setMessages((m) => [
           ...m,
           {
@@ -163,7 +251,6 @@ export function AgentConsole({ initialEns = "" }: Props) {
             reflectionTriggered: res.reflectionTriggered,
           },
         ]);
-        const nextHead = res.memoryRootAfter ?? res.memoryRoot;
         if (nextHead) setLiveMemoryHead(nextHead);
         push({ level: "success", event: "ADVISOR_REPLY", value: res.agentId.slice(0, 8) });
       }
@@ -175,7 +262,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
         ...m,
         {
           role: "agent",
-          text: `⚠ ${msg}`,
+          text: msg,
           executionLog: null,
         },
       ]);
@@ -184,206 +271,329 @@ export function AgentConsole({ initialEns = "" }: Props) {
     }
   }
 
+  const logLines = lines.slice(-5);
+  const profession = agent?.profession?.trim() || "Advisor";
+  const priceLabel = formatConsultationPrice(agent?.pricing ?? null);
+  const isFree = priceLabel === "Free";
+  const mb = training?.manifest?.totalSizeBytes ?? 0;
+  const mbStr = (mb / (1024 * 1024)).toFixed(1);
+  const topDocs = (training?.docs ?? []).slice(0, 3);
+
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-6 lg:flex-row lg:gap-8">
-      {/* LEFT — agent info (~30%) */}
-      <aside className="flex w-full shrink-0 flex-col rounded-ui border border-dim bg-[rgba(17,17,16,0.85)] p-6 backdrop-blur-sm lg:w-[30%] lg:max-w-sm">
-        <p className="type-eyebrow mb-3">Advisor</p>
-        <label className="block">
-          <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">
-            Advisor ENS
-          </span>
-          <input
+    <div className="flex min-h-[calc(100vh-8rem)] w-full border border-[var(--border-0)] bg-[var(--bg-0)]">
+      {/* LEFT */}
+      <aside className="flex w-[260px] shrink-0 flex-col border-r border-[var(--border-0)] px-5 py-6">
+        <SectionLabel label="ADVISOR" />
+        <div className="mt-4">
+          <UnderlineInput
+            label="ENS NAME"
             value={targetEns}
             onChange={(e) => setTargetEns(e.target.value)}
             onBlur={() => loadAgent().catch(() => {})}
-            placeholder="aria.eth"
-            className="h-10 w-full rounded-control border border-mid bg-black/50 px-3 font-mono text-[13px] text-primary focus:border-accent focus:outline-none"
-            aria-label="Advisor ENS"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") loadAgent().catch(() => {});
+            }}
+            placeholder="lex.counsel.eth"
+            autoComplete="off"
           />
-        </label>
-        <button
-          type="button"
+        </div>
+        <GhostButton
+          label="LOAD ADVISOR"
+          size="sm"
+          className="mt-2"
           onClick={() => loadAgent().catch(() => {})}
-          className="mt-2 h-8 w-full rounded-control border border-dim font-mono text-[10px] uppercase tracking-[0.1em] text-secondary hover:border-mid hover:text-primary"
-        >
-          Refresh advisor
-        </button>
+        />
 
-        {agentLoadErr ? <p className="mt-3 font-mono text-[10px] leading-relaxed text-pending">{agentLoadErr}</p> : null}
+        {agentLoadErr ? (
+          <p className="mt-3 font-mono text-[11px] leading-relaxed text-[var(--pending)]">{agentLoadErr}</p>
+        ) : null}
 
         {agent ? (
           <>
-            <div className="mt-6 rounded-control border border-mid bg-black/35 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-secondary">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-tertiary">You are consulting</p>
-              <p className="mt-1 text-[13px] text-primary">
-                <span className="mr-1" aria-hidden>
-                  {professionEmoji(agent.profession ?? "Advisor")}
-                </span>
-                <span className="font-medium">
-                  {agent.specialization?.trim() || formatProfessionLabel(agent.profession) || "Advisor"}
-                </span>
-                <span className="text-tertiary"> · </span>
-                <span className="text-accent">{agent.ensFullName}</span>
+            <div className="my-5 h-px bg-[var(--border-0)]" />
+            <SectionLabel label="YOU ARE CONSULTING" className="mb-3" />
+            <div className="rounded-[var(--radius-sm)] border border-[var(--border-1)] bg-[var(--bg-1)] p-3">
+              <div className="flex items-center gap-2">
+                <ProfessionGlyph profession={profession} size="sm" />
+                <span className="truncate font-mono text-[13px] font-medium text-[var(--text-0)]">{agent.name}</span>
+              </div>
+              <div className="mt-2">
+                <Badge
+                  variant="profession"
+                  profession={professionBadgeVariant(agent.profession)}
+                  label={formatProfessionLabel(agent.profession)}
+                />
+              </div>
+              <p
+                className={`mt-2 font-mono text-[12px] font-medium ${isFree ? "text-[var(--success)]" : "text-[var(--accent)]"}`}
+              >
+                {priceLabel}
               </p>
-              <p className="mt-2 text-[10px] text-tertiary">
-                {formatConsultationPrice(agent.pricing ?? null)}
-              </p>
-            </div>
-            <h2 className="mt-4 font-mono text-[15px] font-medium text-primary">{agent.name}</h2>
-            <p className="mt-1 break-all font-mono text-[10px] text-tertiary">
-              Owner <span className="text-secondary">{shortenRoot(agent.owner, 4, 4)}</span>
-            </p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
               {agent.openClawAgent ? (
-                <span className="rounded-full border border-[rgba(232,255,90,0.45)] bg-[rgba(232,255,90,0.1)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-accent">
-                  OpenClaw
-                </span>
-              ) : null}
-              {agent.verifiedHumanTwin ? (
-                <span className="rounded-full border border-[rgba(74,222,128,0.35)] bg-[rgba(74,222,128,0.08)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-success">
-                  Human verified
+                <span className="mt-2 inline-block rounded-[var(--radius-sm)] border border-[var(--border-1)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-2)]">
+                  OPENCLAW
                 </span>
               ) : null}
             </div>
 
-            <dl className="mt-6 space-y-2 border-t border-dim pt-4 font-mono text-[10px] text-tertiary">
-              <div>
-                <dt className="text-tertiary">Config root</dt>
-                <dd className="mt-0.5 break-all text-secondary">{shortenRoot(agent.configRoot, 10, 6)}</dd>
-              </div>
-              <div>
-                <dt className="text-tertiary">Memory root (live)</dt>
-                <dd className="mt-0.5 break-all text-accent">{shortenRoot(liveMemoryHead, 10, 6)}</dd>
-              </div>
-            </dl>
+            <div className="my-5 h-px bg-[var(--border-0)]" />
+            <SectionLabel label="ON-CHAIN PROOF" className="mb-3" />
+            <HashDisplay hash={agent.configRoot || "—"} label="Config root" />
+            <div className="mt-3">
+              <HashDisplay
+                hash={liveMemoryHead || "—"}
+                label="Memory root"
+                valueClassName={memoryFlash ? "!text-[var(--accent)]" : ""}
+              />
+              <p className="mt-1 font-mono text-[10px] text-[var(--text-2)]">● live — updates each turn</p>
+            </div>
 
-            <Link
-              href={`/agent/${encodeURIComponent(agent.id)}`}
-              className="mt-6 inline-block font-mono text-[11px] text-accent no-underline hover:underline"
-            >
-              Full profile →
-            </Link>
+            <div className="my-5 h-px bg-[var(--border-0)]" />
+            <SectionLabel label="LOG" className="mb-2" />
+            <ul className="space-y-1">
+              <AnimatePresence initial={false}>
+                {logLines.map((line) => (
+                  <motion.li
+                    key={line.id}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: line.faded ? 0.45 : 1, y: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="flex min-w-0 gap-1.5 font-mono text-[11px]"
+                  >
+                    <span className="shrink-0 text-[var(--text-2)]">{formatTime(line.ts)}</span>
+                    <span
+                      className="shrink-0"
+                      style={{
+                        color:
+                          line.level === "success"
+                            ? "var(--success)"
+                            : line.level === "error"
+                              ? "var(--error)"
+                              : line.level === "pending"
+                                ? "var(--pending)"
+                                : "var(--text-2)",
+                      }}
+                      aria-hidden
+                    >
+                      ●
+                    </span>
+                    <span className="min-w-0 shrink text-[var(--text-1)]">{line.event}</span>
+                    <span className="min-w-0 truncate text-[var(--text-0)]">{line.value}</span>
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </ul>
           </>
         ) : null}
       </aside>
 
-      {/* RIGHT — console (~70%) */}
-      <section className="flex min-h-[480px] min-w-0 flex-1 flex-col rounded-ui border border-dim bg-black/40 backdrop-blur-sm">
-        <div className="border-b border-dim px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-tertiary">
-          Consultation console
+      {/* CENTER */}
+      <section className="flex min-h-[480px] min-w-0 flex-1 flex-col border-r border-[var(--border-0)]">
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--border-0)] px-6">
+          <span className="font-mono text-[11px] font-normal text-[var(--text-2)]">CONSULTATION CONSOLE</span>
+          {agent ? (
+            <span className="truncate font-mono text-[11px] text-[var(--text-0)]">{agent.ensFullName}</span>
+          ) : null}
         </div>
 
-        <div className="flex flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-            {!messages.length && !pending ? (
-              <p className="font-mono text-[12px] text-tertiary">
-                Ask for structured professional advice. Each reply can show OpenClaw steps, tools, and new memory roots on
-                0G.
-              </p>
-            ) : null}
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-6">
+          {!messages.length && !pending ? (
+            <p className="font-mono text-[12px] text-[var(--text-2)]">
+              Ask for structured professional advice. Each reply can show OpenClaw steps and updated memory roots on 0G.
+            </p>
+          ) : null}
 
-            {messages.map((m, i) =>
-              m.role === "user" ? (
-                <div key={i} className="flex justify-end">
-                  <div className="max-w-[88%] rounded-ui border border-mid bg-raised/90 px-4 py-3 font-mono text-[13px] leading-relaxed text-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    {m.text}
-                  </div>
-                </div>
-              ) : (
-                <div key={i} className="flex justify-start">
-                  <div className="max-w-[92%] rounded-ui border border-[rgba(232,255,90,0.22)] bg-[rgba(8,8,8,0.92)] px-4 py-3 font-mono text-[13px] leading-relaxed text-primary shadow-[0_0_24px_rgba(232,255,90,0.07)]">
-                    {m.delegateConversation?.length ? (
-                      <div className="mb-3 space-y-2 rounded-control border border-dim bg-black/35 px-3 py-2">
-                        <p className="text-[9px] uppercase tracking-[0.12em] text-accent">Multi-agent trace</p>
-                        {m.delegateConversation.map((line, j) => (
-                          <div key={j} className="font-mono text-[11px] text-secondary">
-                            <span className="text-tertiary">
-                              {line.from === "A" ? (m.agentLabels?.a ?? "A") : m.agentLabels?.b ?? "B"}:
-                            </span>{" "}
-                            <span className="whitespace-pre-wrap text-primary/90">{line.message}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="whitespace-pre-wrap">{m.text}</div>
-                    <ExecutionLogViewer executionLog={m.executionLog ?? null} />
-                    {"memoryRootAfter" in m && m.memoryRootAfter ? (
-                      <MemoryUpdateBadge
-                        memoryRootBefore={m.memoryRootBefore}
-                        memoryRootAfter={m.memoryRootAfter}
-                        reflectionTriggered={m.reflectionTriggered}
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              )
-            )}
-
-            {pending ? (
-              <div className="flex justify-start">
-                <div className="rounded-ui border border-[rgba(232,255,90,0.15)] bg-[rgba(8,8,8,0.85)] px-4 py-3">
-                  <TypingDots />
+          {messages.map((m, i) =>
+            m.role === "user" ? (
+              <div key={i} className="flex justify-end">
+                <div className="max-w-[70%] rounded-[var(--radius-md)] border border-[var(--accent-mid)] bg-[var(--accent-dim)] px-4 py-3 font-mono text-[13px] font-normal leading-[1.65] text-[var(--text-0)]">
+                  {m.text}
                 </div>
               </div>
-            ) : null}
-            <div ref={bottomRef} />
-          </div>
+            ) : (
+              <div key={i} className="flex max-w-[85%] flex-col items-start">
+                <div className="mb-2.5 flex items-center gap-2">
+                  <span className="flex size-5 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--accent-mid)] bg-[var(--accent-dim)] text-[12px]" aria-hidden>
+                    {professionEmoji(agent?.profession ?? "Advisor")}
+                  </span>
+                  <span className="font-mono text-xs font-medium text-[var(--text-0)]">
+                    {agent?.name ?? "Advisor"}
+                  </span>
+                </div>
+                {m.delegateConversation?.length ? (
+                  <div className="mb-3 w-full space-y-2 rounded-[var(--radius-sm)] border border-[var(--border-1)] bg-[var(--bg-1)] px-3 py-2">
+                    <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--accent)]">
+                      Multi-agent trace
+                    </p>
+                    {m.delegateConversation.map((line, j) => (
+                      <div key={j} className="font-mono text-[11px] text-[var(--text-1)]">
+                        <span className="text-[var(--text-2)]">
+                          {line.from === "A" ? (m.agentLabels?.a ?? "A") : m.agentLabels?.b ?? "B"}:
+                        </span>{" "}
+                        <span className="whitespace-pre-wrap text-[var(--text-0)]">{line.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="w-full rounded-[var(--radius-md)] border border-[var(--border-1)] bg-[var(--bg-1)] px-[18px] py-4">
+                  <MarkdownBody>{m.text}</MarkdownBody>
+                </div>
+                <ExecutionLogViewer executionLog={m.executionLog ?? null} />
+              </div>
+            )
+          )}
 
-          <div className="border-t border-dim p-4">
-            <label className="mb-3 flex cursor-pointer items-center gap-2 font-mono text-[11px] text-secondary">
-              <input
-                type="checkbox"
-                checked={delegateMode}
-                onChange={(e) => setDelegateMode(e.target.checked)}
-                className="accent-accent"
-              />
-              Multi-advisor delegate (A coordinates B)
-            </label>
-            {delegateMode ? (
-              <label className="mb-3 block">
-                <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">
-                  Coordinator advisor ENS (A)
-                </span>
-                <input
-                  value={fromAgentEns}
-                  onChange={(e) => setFromAgentEns(e.target.value)}
-                  placeholder="coordinator.eth"
-                  className="h-10 w-full rounded-control border border-mid bg-void px-3 font-mono text-[13px] text-primary focus:border-accent focus:outline-none"
-                />
-              </label>
-            ) : null}
-            {error ? <p className="mb-2 font-mono text-[11px] text-error">{error}</p> : null}
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <label className="block min-w-0 flex-1">
-                <span className="sr-only">Message</span>
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      send().catch(() => {});
-                    }
-                  }}
-                  placeholder={askPlaceholder}
-                  className="h-11 w-full rounded-control border border-mid bg-void px-3.5 font-mono text-[13px] text-primary placeholder:text-tertiary focus:border-accent focus:outline-none"
-                  disabled={pending}
-                  aria-label="Ask for advice"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={pending || !input.trim()}
-                onClick={() => send().catch(() => {})}
-                className="h-11 shrink-0 rounded-control bg-accent px-6 font-mono text-[12px] font-medium uppercase tracking-[0.05em] text-void transition-colors hover:bg-[#F0FF70] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Ask
-              </button>
+          {pending ? (
+            <div className="flex justify-start">
+              <div className="rounded-[var(--radius-md)] border border-[var(--accent-mid)] bg-[var(--bg-1)] px-4 py-3">
+                <TypingDots />
+              </div>
             </div>
+          ) : null}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="shrink-0 border-t border-[var(--border-0)] px-6 py-4">
+          <label className="mb-2 flex cursor-pointer items-center gap-2 font-mono text-[11px] text-[var(--text-1)]">
+            <input
+              type="checkbox"
+              checked={delegateMode}
+              onChange={(e) => setDelegateMode(e.target.checked)}
+              className="accent-[var(--accent)]"
+            />
+            Multi-advisor delegate (A coordinates B)
+          </label>
+          {delegateMode ? (
+            <UnderlineInput
+              label="COORDINATOR ENS (A)"
+              value={fromAgentEns}
+              onChange={(e) => setFromAgentEns(e.target.value)}
+              placeholder="coordinator.eth"
+              className="mb-3"
+            />
+          ) : null}
+          {error ? <p className="mb-2 font-mono text-[11px] text-[var(--error)]">{error}</p> : null}
+          <div className="flex items-end gap-3">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Message</span>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    send().catch(() => {});
+                  }
+                }}
+                rows={3}
+                placeholder={askPlaceholder}
+                disabled={pending}
+                className="max-h-[120px] min-h-[44px] w-full resize-none rounded-[var(--radius-sm)] border border-[var(--border-1)] bg-[var(--bg-1)] px-3.5 py-3 font-mono text-[13px] font-normal text-[var(--text-0)] placeholder:text-[var(--text-3)] focus:border-[var(--border-3)] focus:outline-none disabled:opacity-50"
+                aria-label="Ask for advice"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={pending || !input.trim() || !normalizedEns}
+              onClick={() => send().catch(() => {})}
+              className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent)] text-[var(--bg-0)] transition-opacity duration-150 hover:opacity-[0.88] active:scale-[0.96] disabled:bg-[var(--bg-3)] disabled:opacity-100"
+              aria-label="Send"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M12 5v14M5 12l7-7 7 7"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
           </div>
         </div>
       </section>
+
+      {/* RIGHT */}
+      <aside className="w-[280px] shrink-0 px-5 py-6">
+        <SectionLabel label="TRAINING CORPUS" />
+        {training && (training.docCount ?? training.docs?.length ?? 0) > 0 ? (
+          <div className="mt-3">
+            <p className="font-mono text-[11px] text-[var(--text-1)]">
+              {training.docCount ?? training.docs.length} documents · {mbStr} MB
+            </p>
+            <Link
+              href={agent ? `/agent/${encodeURIComponent(agent.id)}/training` : "#"}
+              className="mt-1 inline-block font-mono text-[11px] text-[var(--accent)] no-underline hover:underline"
+            >
+              View all →
+            </Link>
+            <ul className="mt-3 border-t border-[var(--border-0)]">
+              {topDocs.map((d) => {
+                const b = docTypeBadge(d.filename);
+                return (
+                  <li
+                    key={d.id}
+                    className="flex items-center gap-2 border-b border-[var(--border-0)] py-1.5 font-mono text-[10px]"
+                  >
+                    <span className={`shrink-0 rounded px-1 py-0.5 ${b.cls}`}>{b.label}</span>
+                    <span className="min-w-0 flex-1 truncate text-[var(--text-1)]">{d.filename}</span>
+                    <span className="shrink-0 text-[var(--text-2)]">
+                      {d.hash.length > 10 ? `${d.hash.slice(0, 4)}…` : d.hash}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <a
+              href="https://chainscan-galileo.0g.ai"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-block font-mono text-[11px] text-[var(--text-2)] no-underline transition-colors hover:text-[var(--text-1)]"
+            >
+              Verify on 0G ↗
+            </a>
+          </div>
+        ) : (
+          <p className="mt-3 font-mono text-[11px] text-[var(--text-2)]">No training documents</p>
+        )}
+
+        <div className="my-5 h-px bg-[var(--border-0)]" />
+        <SectionLabel label="CONSULTATION RECEIPT" />
+        {receipt ? (
+          <div className="mt-3 space-y-2">
+            <p className="font-mono text-[11px] text-[var(--text-2)]">
+              Turn {receipt.turn} · {receipt.at.slice(11, 19)} UTC
+            </p>
+            <div className="flex items-center gap-2 font-mono text-[11px]">
+              <span className="text-[var(--text-2)]">Q</span>
+              <span className="truncate text-[var(--text-1)]">{receipt.qFp}</span>
+            </div>
+            <div className="flex items-center gap-2 font-mono text-[11px]">
+              <span className="text-[var(--text-2)]">A</span>
+              <span className="truncate text-[var(--text-1)]">{receipt.aFp}</span>
+            </div>
+            {receipt.memAfter && receipt.memBefore !== receipt.memAfter ? (
+              <p className="font-mono text-[10px] text-[var(--success)]">Memory updated</p>
+            ) : null}
+            {(receipt.memBefore || receipt.memAfter) && (
+              <p className="break-all font-mono text-[10px] text-[var(--text-2)]">
+                {receipt.memBefore ? shortenRoot(receipt.memBefore, 6, 4) : "—"} →{" "}
+                {receipt.memAfter ? shortenRoot(receipt.memAfter, 6, 4) : "—"}
+              </p>
+            )}
+            <a
+              href="https://chainscan-galileo.0g.ai"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block font-mono text-[11px] text-[var(--accent)] no-underline hover:underline"
+            >
+              View on 0G Explorer ↗
+            </a>
+          </div>
+        ) : (
+          <p className="mt-3 font-mono text-[11px] text-[var(--text-2)]">Send a message to generate a receipt.</p>
+        )}
+      </aside>
     </div>
   );
 }

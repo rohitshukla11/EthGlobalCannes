@@ -96,33 +96,33 @@ export function StepWallet({ onDone }: Props) {
           Link the wallet that will own your Persona on 0G Galileo. Same address as your Sepolia ENS when you mint.
         </p>
 
-        <div className="mt-8 rounded-control border border-dim bg-[rgba(255,255,255,0.02)] px-[18px] py-3.5 font-mono text-[13px]">
+        <div className="mt-8 rounded-[var(--radius-sm)] border border-[var(--border-1)] bg-[var(--bg-1)] px-4 py-3.5 font-mono text-[13px]">
           {!isConnected ? (
-            <p className="flex items-center gap-2 text-tertiary">
-              <span className="size-2 shrink-0 rounded-full bg-tertiary" aria-hidden />
+            <p className="flex items-center gap-2 text-[var(--text-2)]">
+              <span className="size-2 shrink-0 rounded-full bg-[var(--text-3)]" aria-hidden />
               No wallet connected
             </p>
           ) : typing ? (
-            <p className="flex items-center gap-2 text-primary">
-              <span className="size-2 shrink-0 animate-pulse rounded-full bg-pending" aria-hidden />
+            <p className="flex items-center gap-2 text-[var(--text-0)]">
+              <span className="size-2 shrink-0 animate-pulse rounded-full bg-[var(--pending)]" aria-hidden />
               <span>{short}</span>
-              <span className="cursor-blink text-accent" aria-hidden>
+              <span className="cursor-blink text-[var(--accent)]" aria-hidden>
                 ▊
               </span>
             </p>
           ) : connectedOk ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="flex items-center gap-2 text-primary">
-                <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden />
+              <p className="flex items-center gap-2 text-[var(--text-0)]">
+                <span className="size-2 shrink-0 rounded-full bg-[var(--success)]" aria-hidden />
                 {short}
               </p>
-              <span className="rounded-sm border border-[rgba(74,222,128,0.3)] px-2 py-0.5 font-mono text-[10px] text-success">
-                GALILEO TESTNET
+              <span className="rounded-[var(--radius-sm)] border border-[var(--border-1)] px-[7px] py-0.5 font-mono text-[10px] font-normal text-[var(--text-2)]">
+                GALILEO
               </span>
             </div>
           ) : (
-            <p className="flex items-center gap-2 text-pending">
-              <span className="size-2 shrink-0 rounded-full bg-pending" aria-hidden />
+            <p className="flex items-center gap-2 text-[var(--pending)]">
+              <span className="size-2 shrink-0 rounded-full bg-[var(--pending)]" aria-hidden />
               Wrong network — switch to 0G Galileo
             </p>
           )}
