@@ -7,7 +7,12 @@ import { StepWorldId } from "@/components/onboarding/StepWorldId";
 import { StepWallet } from "@/components/onboarding/StepWallet";
 import { StepCreate } from "@/components/onboarding/StepCreate";
 
-export function OnboardingFlow() {
+type Props = {
+  /** e.g. `crypto-lawyer` — pre-fills create step */
+  advisorTemplateId?: string | null;
+};
+
+export function OnboardingFlow({ advisorTemplateId = null }: Props) {
   const [step, setStep] = useState(0);
   const worldAdvanceRef = useRef<number | undefined>(undefined);
 
@@ -32,7 +37,7 @@ export function OnboardingFlow() {
         {[
           <StepWorldId key="w" onVerified={onWorldVerified} />,
           <StepWallet key="k" onDone={() => goStep(2)} />,
-          <StepCreate key="c" />,
+          <StepCreate key="c" advisorTemplateId={advisorTemplateId} />,
         ]}
       </StepSlider>
     </Shell>

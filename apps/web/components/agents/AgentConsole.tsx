@@ -13,6 +13,7 @@ import { ExecutionLogViewer } from "./ExecutionLogViewer";
 import { MemoryUpdateBadge } from "./MemoryUpdateBadge";
 import Link from "next/link";
 import { useCommandLog } from "@/components/command-log/CommandLogProvider";
+import { formatConsultationPrice, professionEmoji } from "@/lib/advisorUi";
 
 type UserMsg = { role: "user"; text: string };
 
@@ -32,28 +33,6 @@ type ChatMsg = UserMsg | AgentMsg;
 type Props = {
   initialEns?: string;
 };
-
-function ReadOnlySlider({ label, value }: { label: string; value: number | null }) {
-  const v = value ?? 50;
-  return (
-    <div className="font-mono text-[11px]">
-      <div className="mb-1 flex justify-between text-secondary">
-        <span>{label}</span>
-        <span className="text-accent">{value === null ? "—" : value}</span>
-      </div>
-      <input
-        type="range"
-        min={0}
-        max={100}
-        value={v}
-        readOnly
-        disabled
-        className="w-full accent-accent opacity-80"
-        aria-label={`${label} ${value ?? "unknown"}`}
-      />
-    </div>
-  );
-}
 
 function TypingDots() {
   return (
@@ -121,7 +100,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
     if (!text || pending) return;
     const ens = normalizedEns;
     if (!ens) {
-      setError("Enter an ENS name.");
+      setError("Enter an advisor ENS name.");
       return;
     }
 
@@ -134,7 +113,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
       if (delegateMode) {
         const fromE = fromAgentEns.trim().toLowerCase();
         if (!fromE) {
-          setError("Delegate mode requires coordinator agent (A) ENS.");
+          setError("Delegate mode requires coordinator advisor (A) ENS.");
           setPending(false);
           setMessages((m) => m.slice(0, -1));
           return;
@@ -174,7 +153,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
         ]);
         const nextHead = res.memoryRootAfter ?? res.memoryRoot;
         if (nextHead) setLiveMemoryHead(nextHead);
-        push({ level: "success", event: "AGENT_REPLY", value: res.agentId.slice(0, 8) });
+        push({ level: "success", event: "ADVISOR_REPLY", value: res.agentId.slice(0, 8) });
       }
     } catch (e) {
       const msg = String(e);
@@ -193,16 +172,14 @@ export function AgentConsole({ initialEns = "" }: Props) {
     }
   }
 
-  const sliders = agent?.personalitySliders;
-
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-6 lg:flex-row lg:gap-8">
       {/* LEFT — agent info (~30%) */}
       <aside className="flex w-full shrink-0 flex-col rounded-ui border border-dim bg-[rgba(17,17,16,0.85)] p-6 backdrop-blur-sm lg:w-[30%] lg:max-w-sm">
-        <p className="type-eyebrow mb-3">Agent</p>
+        <p className="type-eyebrow mb-3">Advisor</p>
         <label className="block">
           <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">
-            Target ENS
+            Advisor ENS
           </span>
           <input
             value={targetEns}
@@ -210,7 +187,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
             onBlur={() => loadAgent().catch(() => {})}
             placeholder="aria.eth"
             className="h-10 w-full rounded-control border border-mid bg-black/50 px-3 font-mono text-[13px] text-primary focus:border-accent focus:outline-none"
-            aria-label="Target ENS"
+            aria-label="Advisor ENS"
           />
         </label>
         <button
@@ -218,14 +195,28 @@ export function AgentConsole({ initialEns = "" }: Props) {
           onClick={() => loadAgent().catch(() => {})}
           className="mt-2 h-8 w-full rounded-control border border-dim font-mono text-[10px] uppercase tracking-[0.1em] text-secondary hover:border-mid hover:text-primary"
         >
-          Refresh profile
+          Refresh advisor
         </button>
 
         {agentLoadErr ? <p className="mt-3 font-mono text-[10px] leading-relaxed text-pending">{agentLoadErr}</p> : null}
 
         {agent ? (
           <>
-            <h2 className="mt-6 font-mono text-[16px] font-medium text-primary">{agent.ensFullName}</h2>
+            <div className="mt-6 rounded-control border border-mid bg-black/35 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-secondary">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-tertiary">You are consulting</p>
+              <p className="mt-1 text-[13px] text-primary">
+                <span className="mr-1" aria-hidden>
+                  {professionEmoji(agent.profession ?? "Advisor")}
+                </span>
+                <span className="font-medium">{agent.specialization?.trim() || agent.profession?.trim() || "Advisor"}</span>
+                <span className="text-tertiary"> · </span>
+                <span className="text-accent">{agent.ensFullName}</span>
+              </p>
+              <p className="mt-2 text-[10px] text-tertiary">
+                {formatConsultationPrice(agent.pricing ?? null)}
+              </p>
+            </div>
+            <h2 className="mt-4 font-mono text-[15px] font-medium text-primary">{agent.name}</h2>
             <p className="mt-1 break-all font-mono text-[10px] text-tertiary">
               Owner <span className="text-secondary">{shortenRoot(agent.owner, 4, 4)}</span>
             </p>
@@ -240,13 +231,6 @@ export function AgentConsole({ initialEns = "" }: Props) {
                   Human verified
                 </span>
               ) : null}
-            </div>
-
-            <div className="mt-6 space-y-4">
-              <p className="type-eyebrow">Personality</p>
-              <ReadOnlySlider label="Humor" value={sliders?.humor ?? null} />
-              <ReadOnlySlider label="Tone" value={sliders?.tone ?? null} />
-              <ReadOnlySlider label="Intelligence" value={sliders?.intelligence ?? null} />
             </div>
 
             <dl className="mt-6 space-y-2 border-t border-dim pt-4 font-mono text-[10px] text-tertiary">
@@ -273,14 +257,15 @@ export function AgentConsole({ initialEns = "" }: Props) {
       {/* RIGHT — console (~70%) */}
       <section className="flex min-h-[480px] min-w-0 flex-1 flex-col rounded-ui border border-dim bg-black/40 backdrop-blur-sm">
         <div className="border-b border-dim px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-tertiary">
-          Interaction console
+          Consultation console
         </div>
 
         <div className="flex flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
             {!messages.length && !pending ? (
               <p className="font-mono text-[12px] text-tertiary">
-                Messages stream here. Each agent reply can unfold reasoning, memory roots, and evolution signals.
+                Ask for structured professional advice. Each reply can show OpenClaw steps, tools, and new memory roots on
+                0G.
               </p>
             ) : null}
 
@@ -339,12 +324,12 @@ export function AgentConsole({ initialEns = "" }: Props) {
                 onChange={(e) => setDelegateMode(e.target.checked)}
                 className="accent-accent"
               />
-              Multi-agent delegate (A coordinates B)
+              Multi-advisor delegate (A coordinates B)
             </label>
             {delegateMode ? (
               <label className="mb-3 block">
                 <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.1em] text-tertiary">
-                  Coordinator agent ENS (A)
+                  Coordinator advisor ENS (A)
                 </span>
                 <input
                   value={fromAgentEns}
@@ -367,10 +352,10 @@ export function AgentConsole({ initialEns = "" }: Props) {
                       send().catch(() => {});
                     }
                   }}
-                  placeholder="Send message to agent…"
+                  placeholder='Ask for advice (e.g. "What legal risks should I consider before launching a token?")'
                   className="h-11 w-full rounded-control border border-mid bg-void px-3.5 font-mono text-[13px] text-primary placeholder:text-tertiary focus:border-accent focus:outline-none"
                   disabled={pending}
-                  aria-label="Send message to agent"
+                  aria-label="Ask for advice"
                 />
               </label>
               <button
@@ -379,7 +364,7 @@ export function AgentConsole({ initialEns = "" }: Props) {
                 onClick={() => send().catch(() => {})}
                 className="h-11 shrink-0 rounded-control bg-accent px-6 font-mono text-[12px] font-medium uppercase tracking-[0.05em] text-void transition-colors hover:bg-[#F0FF70] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Send
+                Ask
               </button>
             </div>
           </div>

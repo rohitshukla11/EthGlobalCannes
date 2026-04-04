@@ -17,8 +17,9 @@ const syne = Syne({
 });
 
 export const metadata: Metadata = {
-  title: "TwinNet AI — Digital Twin Agents on 0G",
-  description: "Human-verified agents, 0G Compute & Storage, iNFT, ENS",
+  title: "Counselr — AI advisors powered by real professionals",
+  description:
+    "Create your AI advisor, explore professionals on-chain, and consult with verifiable memory on 0G. OpenClaw, ENS, iNFT.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

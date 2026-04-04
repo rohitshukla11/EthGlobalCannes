@@ -3,27 +3,22 @@
 import Link from "next/link";
 import type { MarketplaceAgent } from "@/lib/agentTypes";
 import { shortenRoot } from "@/lib/formatRoot";
+import { formatConsultationPrice, professionEmoji } from "@/lib/advisorUi";
 
 type Props = {
   agent: MarketplaceAgent;
   active?: boolean;
 };
 
-function TraitRow({ label, value }: { label: string; value: number | null }) {
-  return (
-    <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
-      <span className="text-tertiary">{label}</span>
-      <span className="tabular-nums text-accent">{value === null ? "—" : value}</span>
-    </div>
-  );
-}
-
 export function AgentCard({ agent, active }: Props) {
-  const sliders = agent.personalitySliders;
-  const summary =
-    agent.personality?.trim() ||
+  const profession = agent.profession?.trim() || "Advisor";
+  const emoji = professionEmoji(profession);
+  const specialization = agent.specialization?.trim() || "Professional advisory";
+  const experience = agent.experience?.trim() || "";
+  const pitch =
     agent.expertise?.trim() ||
-    "Autonomous twin on 0G — personality manifest on-chain.";
+    agent.personality?.trim() ||
+    "Consultation-grade AI on 0G — memory and proofs per session.";
 
   return (
     <article
@@ -35,11 +30,18 @@ export function AgentCard({ agent, active }: Props) {
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h3 className="font-mono text-[15px] font-medium text-primary">{agent.ensFullName}</h3>
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent">
+            <span className="mr-1" aria-hidden>
+              {emoji}
+            </span>
+            {profession}
+          </p>
+          <h3 className="mt-1 font-mono text-[15px] font-medium text-primary">{specialization}</h3>
+          <p className="mt-1 font-mono text-[12px] text-secondary">{agent.ensFullName}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {agent.openClawAgent ? (
               <span className="rounded-full border border-[rgba(232,255,90,0.45)] bg-[rgba(232,255,90,0.1)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-accent">
-                OpenClaw agent
+                OpenClaw
               </span>
             ) : null}
             {agent.verifiedHumanTwin ? (
@@ -54,26 +56,27 @@ export function AgentCard({ agent, active }: Props) {
         </span>
       </div>
 
-      <p className="mt-4 line-clamp-2 min-h-[2.5rem] font-mono text-[12px] leading-relaxed text-secondary">{summary}</p>
+      {experience ? (
+        <p className="mt-3 font-mono text-[11px] leading-relaxed text-tertiary">{experience}</p>
+      ) : null}
 
-      <div className="mt-4 space-y-1.5 rounded-control border border-dim/80 bg-black/25 px-3 py-2.5">
-        <TraitRow label="Humor" value={sliders?.humor ?? null} />
-        <TraitRow label="Tone" value={sliders?.tone ?? null} />
-        <TraitRow label="Intelligence" value={sliders?.intelligence ?? null} />
-      </div>
+      <p className="mt-3 line-clamp-3 min-h-[3.25rem] font-mono text-[12px] leading-relaxed text-secondary">
+        &ldquo;{pitch}&rdquo;
+      </p>
 
-      <dl className="mt-4 space-y-1 font-mono text-[10px] text-tertiary">
+      <p className="mt-4 font-mono text-[11px] text-secondary">
+        <span className="text-tertiary">Consultation: </span>
+        {formatConsultationPrice(agent.pricing ?? null)}
+      </p>
+
+      <dl className="mt-4 space-y-1 border-t border-dim pt-4 font-mono text-[10px] text-tertiary">
         <div className="flex justify-between gap-2">
           <dt>Config root</dt>
           <dd className="max-w-[58%] break-all text-right text-secondary">{shortenRoot(agent.configRoot, 6, 4)}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt>Memory root</dt>
+          <dt>Memory head</dt>
           <dd className="max-w-[58%] break-all text-right text-secondary">{shortenRoot(agent.memoryHead, 6, 4)}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt>Chain</dt>
-          <dd className="text-secondary">Galileo</dd>
         </div>
       </dl>
 
@@ -82,13 +85,13 @@ export function AgentCard({ agent, active }: Props) {
           href={`/agent/${encodeURIComponent(agent.id)}`}
           className="inline-flex h-9 flex-1 min-w-[120px] items-center justify-center rounded-control border border-mid bg-transparent font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-primary no-underline transition-colors hover:border-accent hover:text-accent"
         >
-          View profile
+          Profile
         </Link>
         <Link
-          href={`/console?ens=${encodeURIComponent(agent.ensFullName)}`}
+          href={`/agent/${encodeURIComponent(agent.ensFullName)}/interact`}
           className="inline-flex h-9 flex-1 min-w-[120px] items-center justify-center rounded-control bg-accent font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-void no-underline transition-colors hover:bg-[#F0FF70]"
         >
-          Interact
+          Ask for advice
         </Link>
       </div>
     </article>

@@ -9,7 +9,7 @@ export default function VerifyPage() {
         <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-tertiary">Verification</p>
         <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight text-primary sm:text-4xl">Verify on 0G</h1>
         <p className="mt-3 max-w-subtitle font-mono text-[13px] text-secondary">
-          TwinNet splits proof across <span className="text-primary">0G Storage</span> (agent JSON &amp; memory blobs) and{" "}
+          Counselr splits proof across <span className="text-primary">0G Storage</span> (agent JSON &amp; memory blobs) and{" "}
           <span className="text-primary">0G Galileo</span> (iNFT contract). Use the steps below after minting a persona.
         </p>
       </header>

@@ -69,7 +69,7 @@ export default async function AgentDeploymentPage({ params }: { params: Promise<
         <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight text-primary sm:text-4xl">Proofs &amp; 0G links</h1>
         <p className="mt-3 max-w-subtitle font-mono text-[13px] text-secondary">
           On-chain iNFT on Galileo, canonical config on 0G Storage. New mints use a self-describing tokenURI (e.g.{" "}
-          <span className="text-tertiary">twinnet-0g-metadata:0x…</span>); this API URL remains a fallback viewer.
+          <span className="text-tertiary">counselr-0g-metadata:0x…</span>); this API URL remains a fallback viewer.
         </p>
       </header>
 

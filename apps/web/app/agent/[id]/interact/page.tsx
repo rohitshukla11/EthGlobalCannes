@@ -53,10 +53,10 @@ function InteractInner() {
       </div>
       <header>
         <h1 className="font-display text-3xl font-extrabold leading-tight text-primary sm:text-4xl">
-          Interact
+          Consultation
         </h1>
         <p className="mt-3 max-w-subtitle font-mono text-[13px] text-secondary">
-          Terminal session with verifiable execution and evolving memory on 0G.
+          Ask for advice — OpenClaw execution and advisor memory on 0G, verifiable each turn.
         </p>
       </header>
       <AgentConsole initialEns={resolvedEns} />

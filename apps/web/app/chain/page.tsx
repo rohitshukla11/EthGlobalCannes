@@ -43,7 +43,7 @@ export default async function ChainPage() {
         <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-tertiary">0G Galileo</p>
         <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight text-primary sm:text-4xl">Chain &amp; contracts</h1>
         <p className="mt-3 max-w-subtitle font-mono text-[13px] text-secondary">
-          Live values from the TwinNet API (<code className="text-accent">GET /config/public</code>). Wire wallets and explorers to these
+          Live values from the Counselr API (<code className="text-accent">GET /config/public</code>). Wire wallets and explorers to these
           endpoints.
         </p>
       </header>

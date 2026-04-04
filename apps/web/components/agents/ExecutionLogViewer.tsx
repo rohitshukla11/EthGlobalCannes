@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ExecutionLogPayload, ExecutionStepPayload } from "@/lib/agentTypes";
+import { displayToolName } from "@/lib/toolDisplayNames";
 
 function iconForStep(s: ExecutionStepPayload): string {
   const k = s.kind ?? "";
@@ -14,10 +15,14 @@ function iconForStep(s: ExecutionStepPayload): string {
 
 function labelForStep(s: ExecutionStepPayload): string {
   if (s.shortSummary?.trim()) return s.shortSummary.trim();
-  if (s.kind === "tool_call" && s.tool) return `Calling tool: ${s.tool}`;
-  if (s.kind === "tool_result") return "Tool result received";
-  if (s.kind === "final") return "Final response";
-  if (s.kind === "reasoning") return "Thinking…";
+  if (s.kind === "tool_call" && s.tool) {
+    return `🔧 Consulting ${displayToolName(s.tool)}…`;
+  }
+  if (s.kind === "tool_result") {
+    return `🔧 Retrieved information via ${displayToolName(s.tool)}`;
+  }
+  if (s.kind === "final") return "Response ready";
+  if (s.kind === "reasoning") return "Reasoning…";
   return s.detail?.slice(0, 120) || "Step";
 }
 

@@ -12,7 +12,7 @@ export function AgentGrid({ agents, activeEns }: Props) {
   if (!agents.length) {
     return (
       <p className="py-16 text-center font-mono text-[13px] text-tertiary">
-        No agents match your filters.
+        No advisors match your filters.
       </p>
     );
   }

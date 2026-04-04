@@ -14,13 +14,34 @@ export type MarketplaceAgent = {
   memoryHead: string | null;
   personality: string;
   expertise: string;
+  profession?: string;
+  specialization?: string;
+  experience?: string;
+  advisorTone?: string;
   personalitySliders: PersonalitySliders | null;
+  pricing?: AgentPricing | null;
+};
+
+export type AgentPricing = {
+  pricePerRequest: string;
+  ownerWallet: string;
+  currency?: string;
 };
 
 export type PersonalitySliders = {
   humor: number;
   tone: number;
   intelligence: number;
+};
+
+/** Product-facing advisor shape (maps from agent + ENS). */
+export type Advisor = {
+  ensName: string;
+  profession: string;
+  specialization: string;
+  experience: string;
+  personality: string;
+  pricing?: string;
 };
 
 /** GET /agents/:id or by-ens public agent */
@@ -30,6 +51,10 @@ export type PublicAgent = {
   name: string;
   expertise: string;
   personality: string;
+  profession?: string | null;
+  specialization?: string | null;
+  experience?: string | null;
+  advisorTone?: string | null;
   owner: string;
   tokenId: number;
   configRoot: string;
@@ -38,6 +63,8 @@ export type PublicAgent = {
   verifiedHumanTwin?: boolean;
   openClawAgent?: boolean;
   memoryHead?: string | null;
+  pricing?: AgentPricing | null;
+  createdAt?: string;
 };
 
 export type ExecutionLogPayload = {

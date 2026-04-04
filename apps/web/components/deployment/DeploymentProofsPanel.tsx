@@ -40,7 +40,7 @@ export function DeploymentProofsPanel({
 
   return (
     <div className="space-y-4 rounded-control border border-[rgba(74,222,128,0.25)] bg-[rgba(74,222,128,0.06)] p-5">
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-success">Deployment &amp; proofs — 0G + TwinNet</p>
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-success">Deployment &amp; proofs — 0G + Counselr</p>
       <p className="font-mono text-[11px] leading-relaxed text-tertiary">
         Persona config is stored on <span className="text-secondary">0G Storage</span> (Merkle root below). The iNFT lives on{" "}
         <span className="text-secondary">{deployment.chainName}</span> (chainId {deployment.chainId}). Confirm the mint and
@@ -71,7 +71,7 @@ export function DeploymentProofsPanel({
           </div>
         ) : null}
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.08em] text-tertiary/80">0G — agent config root</dt>
+          <dt className="text-[10px] uppercase tracking-[0.08em] text-tertiary/80">0G — advisor config root</dt>
           <dd className="mt-1 break-all text-secondary">{fmtRoot(deployment.configRoot)}</dd>
         </div>
         {deployment.metadataRoot ? (
@@ -140,7 +140,7 @@ export function DeploymentProofsPanel({
           href={`/agent/${encodeURIComponent(agent.id)}`}
           className="rounded-control border border-mid bg-void px-3 py-2 font-mono text-[10px] text-accent no-underline hover:border-accent"
         >
-          Agent profile
+          Advisor profile
         </Link>
         {showDeepLink ? (
           <Link

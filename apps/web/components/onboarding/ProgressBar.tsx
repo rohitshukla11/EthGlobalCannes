@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 const STEPS = [
   { n: "01", label: "IDENTITY" },
   { n: "02", label: "WALLET" },
-  { n: "03", label: "CREATE" },
+  { n: "03", label: "ADVISOR" },
 ] as const;
 
 type Props = {

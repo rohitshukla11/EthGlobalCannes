@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { apiGet } from "@/lib/api";
+import { formatConsultationPrice, professionEmoji } from "@/lib/advisorUi";
+import type { AgentPricing } from "@/lib/agentTypes";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,11 @@ type Agent = {
   openClawAgent?: boolean;
   toolsEnabled?: string[];
   agentType?: string | null;
+  profession?: string | null;
+  specialization?: string | null;
+  experience?: string | null;
+  advisorTone?: string | null;
+  pricing?: AgentPricing | null;
 };
 
 export default async function AgentProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -39,24 +46,31 @@ export default async function AgentProfilePage({ params }: { params: Promise<{ i
     return (
       <div className="rounded-ui border border-error/40 bg-raised p-8">
         <p className="font-mono text-[13px] text-error">{error ?? "Not found"}</p>
-        <Link href="/marketplace" className="mt-6 inline-block font-mono text-[13px] text-secondary no-underline hover:text-primary">
-          ← Marketplace
+        <Link
+          href="/marketplace"
+          className="mt-6 inline-block font-mono text-[13px] text-secondary no-underline hover:text-primary"
+        >
+          ← Explore Advisors
         </Link>
       </div>
     );
   }
 
+  const profession = agent.profession?.trim() || "Advisor";
+  const emoji = professionEmoji(profession);
+  const specialization = agent.specialization?.trim() || "Professional advisory";
+
   return (
     <div className="space-y-10">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[13px]">
         <Link href="/marketplace" className="text-tertiary no-underline hover:text-secondary">
-          ← Marketplace
+          ← Explore Advisors
         </Link>
         <Link
-          href={`/agent/${encodeURIComponent(agent.id)}/interact`}
+          href={`/agent/${encodeURIComponent(agent.ensFullName)}/interact`}
           className="text-accent no-underline underline-offset-4 hover:text-[#F0FF70]"
         >
-          Interact
+          Ask for advice
         </Link>
         <span className="text-tertiary">·</span>
         <Link
@@ -66,9 +80,19 @@ export default async function AgentProfilePage({ params }: { params: Promise<{ i
           Deployment &amp; proofs →
         </Link>
       </div>
+
       <header>
-        <h1 className="font-display text-3xl font-extrabold leading-tight text-primary sm:text-4xl">{agent.ensFullName}</h1>
-        <p className="mt-2 font-mono text-[15px] font-medium text-primary">{agent.name}</p>
+        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-accent">
+          <span className="mr-1.5" aria-hidden>
+            {emoji}
+          </span>
+          {profession}
+        </p>
+        <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight text-primary sm:text-4xl">
+          {specialization}
+        </h1>
+        <p className="mt-2 font-mono text-[14px] text-secondary">{agent.name}</p>
+        <p className="mt-1 font-mono text-[13px] text-tertiary">{agent.ensFullName}</p>
         <p className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[13px] text-secondary">
           <span>
             Owner <span className="text-primary">{agent.owner}</span>
@@ -83,31 +107,72 @@ export default async function AgentProfilePage({ params }: { params: Promise<{ i
             </span>
           ) : null}
         </p>
+        <p className="mt-4 font-mono text-[13px] text-secondary">
+          <span className="text-tertiary">Consultation: </span>
+          {formatConsultationPrice(agent.pricing ?? null)}
+        </p>
         {agent.toolsEnabled?.length ? (
           <p className="mt-2 font-mono text-[11px] text-tertiary">
             Tools: <span className="text-secondary">{agent.toolsEnabled.join(", ")}</span>
           </p>
         ) : null}
       </header>
+
+      {agent.experience?.trim() ? (
+        <section className="rounded-ui border border-dim bg-raised p-7">
+          <h2 className="type-eyebrow mb-3">Experience &amp; credibility</h2>
+          <p className="font-mono text-[13px] leading-relaxed text-secondary">{agent.experience}</p>
+        </section>
+      ) : null}
+
       <section className="rounded-ui border border-dim bg-raised p-7">
-        <h2 className="type-eyebrow mb-3">Expertise</h2>
-        <p className="font-mono text-[13px] leading-relaxed text-secondary">{agent.expertise}</p>
+        <h2 className="type-eyebrow mb-3">How they help</h2>
+        <p className="font-mono text-[13px] leading-relaxed text-secondary">&ldquo;{agent.expertise}&rdquo;</p>
       </section>
+
       <section className="rounded-ui border border-dim bg-raised p-7">
-        <h2 className="type-eyebrow mb-3">Personality</h2>
+        <h2 className="type-eyebrow mb-3">Expertise areas</h2>
+        <ul className="list-inside list-disc font-mono text-[13px] leading-relaxed text-secondary">
+          <li>{specialization}</li>
+          {agent.advisorTone ? (
+            <li>
+              Tone: <span className="text-primary">{agent.advisorTone}</span>
+            </li>
+          ) : null}
+          <li>OpenClaw reasoning with tools (ENS, memory, optional web)</li>
+        </ul>
+      </section>
+
+      <section className="rounded-ui border border-dim bg-raised p-7">
+        <h2 className="type-eyebrow mb-3">Example consultations</h2>
+        <p className="mb-3 font-mono text-[12px] text-tertiary">
+          Suggested prompts — the advisor responds with structured, professional guidance.
+        </p>
+        <ul className="space-y-2 font-mono text-[12px] leading-relaxed text-secondary">
+          <li>&ldquo;What should I prioritize in the next 30 days for compliance?&rdquo;</li>
+          <li>&ldquo;Walk me through risks and mitigations for my situation.&rdquo;</li>
+          <li>&ldquo;Summarize options with tradeoffs — no hype.&rdquo;</li>
+        </ul>
+      </section>
+
+      <section className="rounded-ui border border-dim bg-raised p-7">
+        <h2 className="type-eyebrow mb-3">Style</h2>
         <p className="font-mono text-[13px] leading-relaxed text-secondary">{agent.personality}</p>
       </section>
+
       <section className="rounded-ui border border-dim bg-raised p-7">
-        <h2 className="type-eyebrow mb-3">On-chain &amp; storage</h2>
+        <h2 className="type-eyebrow mb-3">ENS, iNFT &amp; memory</h2>
         <p className="font-mono text-[11px] text-tertiary">
-          Memory evolves on 0G (OpenClaw DAG: each turn uploads a new root linked via{" "}
-          <code className="text-secondary">previousMemoryRoot</code>).
+          Identity resolves on Sepolia; config and conversation memory live on 0G. OpenClaw links each turn to the previous
+          memory root for an auditable chain of consultations.
         </p>
         <p className="mt-3 break-all font-mono text-[11px] text-tertiary">Config root (0G): {agent.configRoot}</p>
         <p className="mt-4 font-mono text-[13px] text-secondary">
-          Reputation: {agent.reputation.interactions} interactions, {agent.reputation.successes} successful inference runs.
+          Reputation: {agent.reputation.interactions} consultations started, {agent.reputation.successes} completed
+          successfully.
         </p>
       </section>
+
       <section className="rounded-ui border border-dim bg-raised p-7">
         <h2 className="type-eyebrow mb-3">Memory roots</h2>
         <ul className="mt-2 space-y-1 font-mono text-[11px] text-tertiary">

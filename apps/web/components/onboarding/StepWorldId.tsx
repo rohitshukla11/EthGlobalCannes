@@ -73,7 +73,8 @@ export function StepWorldId({ onVerified }: Props) {
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-tertiary">01 — IDENTITY</p>
           <h2 className="mt-3 font-display text-[40px] font-extrabold leading-none text-primary">Verify humanity</h2>
           <p className="mt-5 max-w-[320px] font-mono text-[13px] leading-[1.8] text-secondary">
-            Only real humans can own a Persona. Verify with World ID on your device — one ZK proof per person, no raw biometrics stored by TwinNet.
+            Only verified humans can publish an advisor on Counselr. World ID — one ZK proof per person; no raw biometrics
+            stored by us.
           </p>
           <div className="mt-8">
             {!verified ? (
@@ -153,7 +154,7 @@ export function StepWorldId({ onVerified }: Props) {
                   Anonymous ID: {truncateMiddle(sub, 6, 4)}
                 </p>
                 <p className="mt-2 max-w-[320px] text-[11px] leading-relaxed text-tertiary/90">
-                  A stable, private handle from your proof—one per person for this step, not your name or wallet. TwinNet keeps it only in your session token.
+                  A stable, private handle from your proof—one per person for this step, not your name or wallet. Counselr keeps it only in your session token.
                 </p>
                 {verifiedAt ? (
                   <p className="mt-1 text-tertiary">
