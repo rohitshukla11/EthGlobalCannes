@@ -40,7 +40,7 @@ function hexNorm(r: string): string {
 }
 
 /**
- * Strong binding: ENS address ↔ NFT owner, ENS agent.config/twinn.config ↔ on-chain configRoot, 0G blobs.
+ * Strong binding: ENS address ↔ NFT owner, ENS agent.config (legacy twinn.config) ↔ on-chain configRoot, 0G blobs.
  */
 export async function verifyAgentIntegrity(ensName: string): Promise<AgentIntegrityReport> {
   const ens = ensName.toLowerCase();

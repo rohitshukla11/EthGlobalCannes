@@ -1,5 +1,5 @@
 /**
- * CLI: reconstruct Alter agent from Sepolia ENS + 0G (twinn.* and/or ENSIP-style agent.*).
+ * CLI: reconstruct Alter agent from Sepolia ENS + 0G (agent.*; reads legacy twinn.* if present).
  * Usage: npm run resolve:ens -- name.eth
  */
 import {
@@ -30,7 +30,7 @@ async function main() {
       JSON.stringify(
         {
           ok: false,
-          error: "No agent.* / twinn.* records or config",
+          error: "No resolvable agent.* (or legacy twinn.*) records / config",
           ensName,
           texts,
           standard: "ensip-65-compatible",

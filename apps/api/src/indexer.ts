@@ -182,7 +182,7 @@ export async function listDiscoverableAgents(): Promise<AgentIndexEntry[]> {
       const idx = config.ensIndexName?.trim();
       if (!idx) return "";
       const t = await getEnsAgentTexts(idx);
-      return t["twinn.manifest"] ?? "";
+      return t["agent.manifest"] ?? t["twinn.manifest"] ?? "";
     })());
 
   if (root) {

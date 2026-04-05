@@ -17,7 +17,7 @@ export type ProfessionValue = (typeof PROFESSION_OPTIONS)[number]["value"];
 export function formatProfessionLabel(stored: string | null | undefined): string {
   const s = (stored ?? "").trim();
   if (!s) return "Advisor";
-  if (s.toLowerCase() === WEB3_ARCHITECT_PROFESSION_VALUE) return "Web3 Architect (Token Specialist)";
+  if (s.toLowerCase() === WEB3_ARCHITECT_PROFESSION_VALUE) return "Web3 Architect";
   return s;
 }
 

@@ -45,7 +45,7 @@ async function toolFetchENSProfile(_ctx: ToolContext, args: Record<string, unkno
         name: key,
         records: texts,
         _note:
-          "No Alter protocol (twinn.* / agent.*) text records on Sepolia for this name. Many public .eth names only have data on Ethereum mainnet; Alter reads the Sepolia resolver only. Use knowledge lookup or another tool if the user did not ask specifically for this ENS on Sepolia.",
+          "No Alter protocol (agent.*) text records on Sepolia for this name (legacy twinn.* may exist on older names). Many public .eth names only have data on Ethereum mainnet; Alter reads the Sepolia resolver only. Use knowledge lookup or another tool if the user did not ask specifically for this ENS on Sepolia.",
       },
       null,
       2

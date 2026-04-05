@@ -181,12 +181,6 @@ export async function maybeRunReflection(agentId: string): Promise<boolean> {
       createdAt,
       creator: agent.owner,
     },
-    _counselr: {
-      ensFullName: agent.ensFullName,
-      tokenId: agent.tokenId,
-      owner: agent.owner,
-      version: nextVersion,
-    },
     _alter: {
       ensFullName: agent.ensFullName,
       tokenId: agent.tokenId,

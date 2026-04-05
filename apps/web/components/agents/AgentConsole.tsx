@@ -81,6 +81,17 @@ function docTypeBadge(filename: string): { label: string; cls: string } {
   return { label: "TXT", cls: "bg-[rgba(45,212,191,0.12)] text-[#5EEAD4]" };
 }
 
+/** Deep link on [0G StorageScan](https://storagescan-galileo.0g.ai) — ChainScan has no /storage/ route for roots. */
+function zgStorageSubmissionUrl(storageScanBase: string, root: string | null | undefined): string | null {
+  const base = storageScanBase.replace(/\/$/, "");
+  if (!base || !root?.trim()) return null;
+  const r = root.trim();
+  if (r === "—") return null;
+  const hex = r.startsWith("0x") ? r : `0x${r}`;
+  if (!/^0x[0-9a-fA-F]+$/i.test(hex)) return null;
+  return `${base}/submission/${hex}`;
+}
+
 export function AgentConsole({ initialEns = "" }: Props) {
   const { push, lines } = useCommandLog();
   const [targetEns, setTargetEns] = useState(initialEns);
@@ -98,9 +109,25 @@ export function AgentConsole({ initialEns = "" }: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [zgExplorerBase, setZgExplorerBase] = useState("");
+  const [zgStorageScanBase, setZgStorageScanBase] = useState("");
   const turnRef = useRef(0);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    apiGet<{ zgExplorerUrl: string; zgStorageScanUrl?: string }>("/config/public")
+      .then((c) => {
+        setZgExplorerBase((c.zgExplorerUrl ?? "").replace(/\/$/, ""));
+        setZgStorageScanBase(
+          (c.zgStorageScanUrl ?? "https://storagescan-galileo.0g.ai").replace(/\/$/, ""),
+        );
+      })
+      .catch(() => {
+        setZgExplorerBase("https://chainscan-galileo.0g.ai");
+        setZgStorageScanBase("https://storagescan-galileo.0g.ai");
+      });
+  }, []);
 
   useEffect(() => {
     if (initialEns) setTargetEns(initialEns);
@@ -279,6 +306,33 @@ export function AgentConsole({ initialEns = "" }: Props) {
   const mbStr = (mb / (1024 * 1024)).toFixed(1);
   const topDocs = (training?.docs ?? []).slice(0, 3);
 
+  const trainingExplorerRoot = useMemo(() => {
+    const tr = training?.trainingRoot?.trim();
+    if (tr) return tr;
+    const h = training?.docs?.[0]?.hash?.trim();
+    if (h) return h;
+    return agent?.configRoot?.trim() ?? null;
+  }, [training?.trainingRoot, training?.docs, agent?.configRoot]);
+
+  const trainingStorageUrl = useMemo(
+    () => zgStorageSubmissionUrl(zgStorageScanBase, trainingExplorerRoot),
+    [zgStorageScanBase, trainingExplorerRoot],
+  );
+
+  const receiptStorageUrl = useMemo(() => {
+    const root = receipt?.memAfter?.trim() || receipt?.memBefore?.trim() || null;
+    return zgStorageSubmissionUrl(zgStorageScanBase, root);
+  }, [zgStorageScanBase, receipt?.memAfter, receipt?.memBefore]);
+
+  const configStorageUrl = useMemo(
+    () => zgStorageSubmissionUrl(zgStorageScanBase, agent?.configRoot),
+    [zgStorageScanBase, agent?.configRoot],
+  );
+  const memoryStorageUrl = useMemo(
+    () => zgStorageSubmissionUrl(zgStorageScanBase, liveMemoryHead),
+    [zgStorageScanBase, liveMemoryHead],
+  );
+
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden border border-[var(--border-0)] bg-[var(--bg-0)]">
       {/* LEFT */}
@@ -329,16 +383,21 @@ export function AgentConsole({ initialEns = "" }: Props) {
               >
                 {priceLabel}
               </p>
-              {agent.openClawAgent ? (
-                <span className="mt-2 inline-block rounded-[var(--radius-sm)] border border-[var(--border-1)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-2)]">
-                  OPENCLAW
-                </span>
-              ) : null}
             </div>
 
             <div className="my-3 h-px bg-[var(--border-0)]" />
             <SectionLabel label="ON-CHAIN PROOF" className="mb-2" />
             <HashDisplay hash={agent.configRoot || "—"} label="Config root" />
+            {configStorageUrl ? (
+              <a
+                href={configStorageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-block font-mono text-[10px] text-[var(--accent)] no-underline hover:underline"
+              >
+                Config on StorageScan ↗
+              </a>
+            ) : null}
             <div className="mt-2">
               <HashDisplay
                 hash={liveMemoryHead || "—"}
@@ -346,6 +405,16 @@ export function AgentConsole({ initialEns = "" }: Props) {
                 valueClassName={memoryFlash ? "!text-[var(--accent)]" : ""}
               />
               <p className="mt-0.5 font-mono text-[10px] text-[var(--text-2)]">● live — updates each turn</p>
+              {memoryStorageUrl ? (
+                <a
+                  href={memoryStorageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-block font-mono text-[10px] text-[var(--accent)] no-underline hover:underline"
+                >
+                  Memory on StorageScan ↗
+                </a>
+              ) : null}
             </div>
 
             <div className="my-3 h-px bg-[var(--border-0)]" />
@@ -545,12 +614,12 @@ export function AgentConsole({ initialEns = "" }: Props) {
               })}
             </ul>
             <a
-              href="https://chainscan-galileo.0g.ai"
+              href={(trainingStorageUrl ?? zgStorageScanBase) || "https://storagescan-galileo.0g.ai"}
               target="_blank"
               rel="noreferrer"
               className="mt-3 inline-block font-mono text-[11px] text-[var(--text-2)] no-underline transition-colors hover:text-[var(--text-1)]"
             >
-              Verify on 0G ↗
+              {trainingStorageUrl ? "View on StorageScan ↗" : "StorageScan (home) ↗"}
             </a>
           </div>
         ) : (
@@ -582,12 +651,12 @@ export function AgentConsole({ initialEns = "" }: Props) {
               </p>
             )}
             <a
-              href="https://chainscan-galileo.0g.ai"
+              href={(receiptStorageUrl ?? zgStorageScanBase) || "https://storagescan-galileo.0g.ai"}
               target="_blank"
               rel="noreferrer"
               className="inline-block font-mono text-[11px] text-[var(--accent)] no-underline hover:underline"
             >
-              View on 0G Explorer ↗
+              {receiptStorageUrl ? "View memory on StorageScan ↗" : "StorageScan (home) ↗"}
             </a>
           </div>
         ) : (

@@ -333,7 +333,7 @@ export function StepCreate({ onMinted, advisorTemplateId = null }: Props) {
               ) : null}
             </div>
             <p className="mt-2 font-mono text-[11px] font-normal text-[var(--text-2)]">
-              Charged per consultation via Arc USDC
+              Charged per consultation via USDC
             </p>
           </div>
         </div>

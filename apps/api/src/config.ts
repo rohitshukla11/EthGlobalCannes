@@ -37,6 +37,8 @@ export const config = {
   zgRpc: opt("ZG_RPC_URL", "https://evmrpc-testnet.0g.ai"),
   zgIndexerRpc: opt("ZG_STORAGE_INDEXER_RPC", "https://indexer-storage-testnet-turbo.0g.ai"),
   zgExplorerUrl: opt("ZG_EXPLORER_URL", "https://chainscan-galileo.0g.ai"),
+  /** Storage blob / Merkle root pages (not ChainScan — use /submission/0x…). */
+  zgStorageScanUrl: opt("ZG_STORAGE_SCAN_URL", "https://storagescan-galileo.0g.ai"),
   zgStoragePrivateKey: opt("ZG_STORAGE_PRIVATE_KEY", ""),
   zgComputePrivateKey: opt("ZG_COMPUTE_PRIVATE_KEY", ""),
 
@@ -76,7 +78,7 @@ export const config = {
   discoveryMode: (opt("DISCOVERY_MODE", "local") as "local" | "ens" | "hybrid") || "local",
   /** 0G Storage root hash of agent index JSON (see manifest0g.ts). Optional; enables decentralized listing. */
   agentIndexRoot: opt("AGENT_INDEX_ROOT", ""),
-  /** Sepolia ENS name whose resolver stores twinn.manifest = latest AGENT_INDEX_ROOT (operator updates on mint). */
+  /** Sepolia ENS name whose resolver stores agent.manifest (legacy: twinn.manifest) = latest AGENT_INDEX_ROOT. */
   ensIndexName: opt("ENS_INDEX_NAME", ""),
 
   /** Comma-ordered inference providers: 0g,mock,openai */

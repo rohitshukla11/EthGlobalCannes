@@ -1,4 +1,4 @@
-/** Stored profession slug for Web3 Architect (Token Specialist) — matches frontend PROFESSION_OPTIONS value. */
+/** Stored profession slug for Web3 Architect — matches frontend PROFESSION_OPTIONS value. */
 export const WEB3_ARCHITECT_PROFESSION = "web3-architect";
 
 export function isWeb3ArchitectProfession(profession: string | undefined | null): boolean {

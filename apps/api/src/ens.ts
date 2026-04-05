@@ -36,7 +36,7 @@ const TWINN_TEXT_KEYS = [
   "description",
 ] as const;
 
-/** ENSIP-65-style agent text records (alongside twinn.*; readers prefer agent.* then twinn.*). */
+/** Canonical Alter protocol keys (written on mint / updates). Legacy twinn.* is read-only for old names. */
 const AGENT_TEXT_KEYS = [
   "agent.config",
   "agent.memory",
@@ -47,6 +47,10 @@ const AGENT_TEXT_KEYS = [
   "agent.chain",
   "agent.version",
   "agent.type",
+  "agent.createdAt",
+  "agent.worldId",
+  "agent.agentId",
+  "agent.manifest",
 ] as const;
 
 const ALL_RESOLVER_TEXT_KEYS = [...TWINN_TEXT_KEYS, ...AGENT_TEXT_KEYS] as const;
@@ -92,8 +96,9 @@ export function effectiveVersionText(texts: Record<string, string>): string | un
   return v || undefined;
 }
 
+/** True if any agent.* (canonical) or twinn.* (legacy) text exists — for verify / tooling. */
 export function hasAgentNamespaceRecords(texts: Record<string, string>): boolean {
-  return Object.keys(texts).some((k) => k.startsWith("agent."));
+  return Object.keys(texts).some((k) => k.startsWith("agent.") || k.startsWith("twinn."));
 }
 
 export async function resolveEnsAddress(name: string): Promise<Address | null> {
@@ -194,7 +199,8 @@ export function resolvedProfileToAgentRecord(profile: ResolvedAgentProfile): Age
   if (!tokenRaw || !configRoot) return null;
   const tokenId = Number(tokenRaw);
   if (!Number.isFinite(tokenId)) return null;
-  const legacyId = profile.texts["twinn.agentId"];
+  const legacyId =
+    profile.texts["agent.agentId"]?.trim() || profile.texts["twinn.agentId"]?.trim() || undefined;
   const id = legacyId || `ens:${profile.ensFullName}`;
   const owner = (effectiveOwnerWallet(profile.texts) || profile.resolvedAddress || "").toLowerCase();
   const cfg = profile.configJson;
@@ -212,6 +218,7 @@ export function resolvedProfileToAgentRecord(profile: ResolvedAgentProfile): Age
   const meta = cfg?.metadata as { createdAt?: string; creator?: string } | undefined;
   const createdAt =
     meta?.createdAt ||
+    profile.texts["agent.createdAt"]?.trim() ||
     profile.texts["twinn.createdAt"] ||
     new Date().toISOString();
   const ensVersion = effectiveVersionText(profile.texts);
@@ -284,40 +291,28 @@ export type WriteEnsTwinOpts = {
   version: number;
   /** Protocol surface, e.g. openclaw */
   agentType?: string;
-  /** e.g. openclaw-v1 */
-  runtime?: string;
-  /** Comma-separated tool names for twinn.tools */
+  /** Comma-separated tool names for agent.tools */
   toolsCsv?: string;
   /** Initial memory head (usually empty until first turn) */
   memoryHead?: string;
   worldIdLinked?: boolean;
-  /** If set, also writes twinn.agentId for backward compatibility with older indexers. */
+  /** If set, writes agent.agentId (legacy UUID flows). */
   legacyAgentId?: string;
 };
 
 /**
- * Writes twinn.* (legacy protocol keys) and agent.* (ENSIP-65-style) text records when ENS_OPERATOR_PRIVATE_KEY
- * controls the name's resolver on Sepolia. Does not remove or omit twinn.* keys.
+ * Writes agent.* (+ description) text records when ENS_OPERATOR_PRIVATE_KEY controls the resolver on Sepolia.
+ * Does not write twinn.* (legacy); old twinn.* keys on a name are left unchanged until cleared manually.
  */
 export async function tryWriteEnsTwinRecords(fullName: string, opts: WriteEnsTwinOpts): Promise<boolean> {
   const owner = opts.ownerWallet.toLowerCase();
   const versionStr = String(opts.version);
   const agentType = opts.agentType ?? "openclaw";
-  const runtimeTwin = opts.runtime ?? "openclaw-v1";
-  /** Short ENSIP-style runtime label (still matches openClaw checks via substring "openclaw"). */
+  /** Matches openClaw checks via substring "openclaw". */
   const runtimeAgent = "openclaw";
   const tools = opts.toolsCsv ?? "";
 
   const entries: [string, string][] = [
-    ["twinn.tokenId", String(opts.tokenId)],
-    ["twinn.config", opts.configRoot],
-    ["twinn.owner", owner],
-    ["twinn.chain", opts.chainId],
-    ["twinn.createdAt", opts.createdAt],
-    ["twinn.version", versionStr],
-    ["twinn.agentType", agentType],
-    ["twinn.runtime", runtimeTwin],
-    ["twinn.tools", tools],
     ["description", `Alter AI agent — token ${opts.tokenId}`],
     ["agent.config", opts.configRoot],
     ["agent.owner", owner],
@@ -327,32 +322,27 @@ export async function tryWriteEnsTwinRecords(fullName: string, opts: WriteEnsTwi
     ["agent.chain", opts.chainId],
     ["agent.version", versionStr],
     ["agent.type", agentType],
+    ["agent.createdAt", opts.createdAt],
   ];
   if (opts.memoryHead?.trim()) {
-    const m = opts.memoryHead.trim();
-    entries.push(["twinn.memoryHead", m], ["agent.memory", m]);
+    entries.push(["agent.memory", opts.memoryHead.trim()]);
   }
-  if (opts.legacyAgentId) entries.push(["twinn.agentId", opts.legacyAgentId]);
-  if (opts.worldIdLinked) entries.push(["twinn.worldId", "1"]);
+  if (opts.legacyAgentId) entries.push(["agent.agentId", opts.legacyAgentId]);
+  if (opts.worldIdLinked) entries.push(["agent.worldId", "1"]);
   return setTexts(fullName, entries);
 }
 
-/** Update canonical OpenClaw memory pointer on ENS (twinn.memoryHead + agent.memory). */
+/** Update canonical OpenClaw memory pointer on ENS (agent.memory only). */
 export async function updateEnsMemoryHead(fullName: string, memoryRoot: string): Promise<boolean> {
   const v = memoryRoot.trim();
   if (!v) return false;
-  return setTexts(fullName, [
-    ["twinn.memoryHead", v],
-    ["agent.memory", v],
-  ]);
+  return setTexts(fullName, [["agent.memory", v]]);
 }
 
 /** Partial ENS update after config rotation (reflection / admin). */
 export async function tryPatchEnsTwinAgent(fullName: string, patch: { configRoot: string; version: number }): Promise<boolean> {
   const v = String(patch.version);
   return setTexts(fullName, [
-    ["twinn.config", patch.configRoot],
-    ["twinn.version", v],
     ["agent.config", patch.configRoot],
     ["agent.version", v],
   ]);
@@ -362,7 +352,7 @@ export async function tryPatchEnsTwinAgent(fullName: string, patch: { configRoot
 export async function tryWriteEnsIndexManifest(indexRoot: string): Promise<boolean> {
   const name = config.ensIndexName?.trim();
   if (!name || !indexRoot) return false;
-  return setTexts(name, [["twinn.manifest", indexRoot]]);
+  return setTexts(name, [["agent.manifest", indexRoot]]);
 }
 
 /** Best-effort: publish verifiable training manifest pointer on the agent's ENS name. */

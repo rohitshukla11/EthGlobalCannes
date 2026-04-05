@@ -53,11 +53,11 @@ export type AgentRecord = {
   longTermRoots?: string[];
   /** Cumulative user turns since last reflection (for /agent/request) */
   turnsSinceReflection?: number;
-  /** Operator published twinn.worldId text via API */
+  /** Operator published agent.worldId (legacy: twinn.worldId) via API */
   ensHumanVerifiedHint?: boolean;
-  /** From ENS twinn.agentType (e.g. openclaw) */
+  /** From ENS agent.type (e.g. openclaw) */
   agentType?: string;
-  /** Latest OpenClaw memory head from ENS twinn.memoryHead (optional cache mirror) */
+  /** Latest OpenClaw memory head from ENS agent.memory (optional cache mirror) */
   ensMemoryHead?: string;
   /** Latest training manifest root on 0G (verifiable corpus) */
   trainingRoot?: string;

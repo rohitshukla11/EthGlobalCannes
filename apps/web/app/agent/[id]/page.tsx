@@ -122,11 +122,6 @@ export default async function AgentProfilePage({ params }: { params: Promise<{ i
           <span className="border border-dim px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-secondary">
             iNFT #{agent.tokenId}
           </span>
-          {agent.openClawAgent ? (
-            <span className="rounded-full border border-[rgba(232,255,90,0.45)] bg-[rgba(232,255,90,0.1)] px-2 py-0.5 text-[9px] uppercase tracking-[0.1em] text-accent">
-              OpenClaw
-            </span>
-          ) : null}
         </p>
         <p className="mt-4 font-mono text-[13px] text-secondary">
           <span className="text-tertiary">Consultation: </span>

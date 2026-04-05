@@ -44,11 +44,31 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+type TrainingVerifyResponse = {
+  reachable?: boolean;
+  integrityOk?: boolean;
+  byteLength?: number;
+  expectedSizeBytes?: number;
+  verifiedAt?: string;
+  explorerUrl?: string;
+  summary?: string;
+  error?: string;
+};
+
 type VerifyState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ok"; at: string }
-  | { status: "fail" };
+  | {
+      status: "done";
+      reachable: boolean;
+      integrityOk: boolean;
+      byteLength: number;
+      expectedSizeBytes: number;
+      verifiedAt: string;
+      explorerUrl?: string;
+      summary?: string;
+    }
+  | { status: "error"; message: string };
 
 function DocVerifyRow({ agentId, doc }: { agentId: string; doc: TrainingDocument }) {
   const [v, setV] = useState<VerifyState>({ status: "idle" });
@@ -60,30 +80,65 @@ function DocVerifyRow({ agentId, doc }: { agentId: string; doc: TrainingDocument
         `${apiBase}/agents/${encodeURIComponent(agentId)}/training/verify/${encodeURIComponent(doc.id)}`,
         { cache: "no-store" }
       );
-      const j = (await r.json()) as { reachable?: boolean; verifiedAt?: string };
-      if (r.ok && j.reachable) setV({ status: "ok", at: j.verifiedAt ?? new Date().toISOString() });
-      else setV({ status: "fail" });
-    } catch {
-      setV({ status: "fail" });
+      const j = (await r.json()) as TrainingVerifyResponse;
+      if (!r.ok) {
+        setV({ status: "error", message: j.error ?? `HTTP ${r.status}` });
+        return;
+      }
+      setV({
+        status: "done",
+        reachable: Boolean(j.reachable),
+        integrityOk: Boolean(j.integrityOk),
+        byteLength: j.byteLength ?? 0,
+        expectedSizeBytes: j.expectedSizeBytes ?? doc.sizeBytes,
+        verifiedAt: j.verifiedAt ?? new Date().toISOString(),
+        explorerUrl: j.explorerUrl,
+        summary: j.summary,
+      });
+    } catch (e) {
+      setV({ status: "error", message: String(e) });
     }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        onClick={() => verify()}
-        disabled={v.status === "loading"}
-        className="font-mono text-[10px] uppercase tracking-[0.1em] text-accent hover:underline disabled:opacity-50"
-      >
-        {v.status === "loading" ? "Verifying…" : "Verify ↗"}
-      </button>
-      {v.status === "ok" ? (
-        <span className="font-mono text-[10px] text-success">
-          ✓ Verified on 0G · {new Date(v.at).toISOString().slice(11, 19)} UTC
-        </span>
+    <div className="mt-2 space-y-1.5 rounded border border-dim bg-black/20 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => verify()}
+          disabled={v.status === "loading"}
+          className="font-mono text-[10px] uppercase tracking-[0.1em] text-accent hover:underline disabled:opacity-50"
+        >
+          {v.status === "loading" ? "Verifying…" : "Verify on 0G (API)"}
+        </button>
+        {v.status === "done" && v.reachable && v.integrityOk ? (
+          <span className="font-mono text-[10px] text-success">
+            ✓ Downloaded from 0G · {new Date(v.verifiedAt).toISOString().slice(11, 19)} UTC · {v.byteLength} bytes
+          </span>
+        ) : null}
+        {v.status === "done" && v.reachable && !v.integrityOk ? (
+          <span className="font-mono text-[10px] text-pending">
+            ⚠ Reachable but size mismatch: got {v.byteLength} B, expected {v.expectedSizeBytes} B
+          </span>
+        ) : null}
+        {v.status === "done" && !v.reachable ? (
+          <span className="font-mono text-[10px] text-error">✗ Not retrievable from 0G for this root</span>
+        ) : null}
+        {v.status === "error" ? <span className="font-mono text-[10px] text-error">{v.message}</span> : null}
+      </div>
+      {v.status === "done" && v.summary ? (
+        <p className="font-mono text-[10px] leading-relaxed text-tertiary">{v.summary}</p>
       ) : null}
-      {v.status === "fail" ? <span className="font-mono text-[10px] text-error">✗ Not reachable on 0G Storage</span> : null}
+      {v.status === "done" && v.explorerUrl ? (
+        <a
+          href={v.explorerUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-block font-mono text-[10px] text-accent no-underline hover:underline"
+        >
+          Open blob on StorageScan ↗
+        </a>
+      ) : null}
     </div>
   );
 }
@@ -99,7 +154,8 @@ export default function TrainingDataPage() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [trainingRoot, setTrainingRoot] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
-  const [explorer, setExplorer] = useState("");
+  /** 0G StorageScan (Galileo) — blob roots use /submission/0x…, not ChainScan /storage/. */
+  const [storageScan, setStorageScan] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -128,8 +184,10 @@ export default function TrainingDataPage() {
       setTrainingRoot(tj.trainingRoot ?? null);
       setUpdatedAt(tj.updatedAt ?? null);
       if (pub.ok) {
-        const pj = (await pub.json()) as { zgExplorerUrl: string };
-        setExplorer(pj.zgExplorerUrl?.replace(/\/$/, "") ?? "");
+        const pj = (await pub.json()) as { zgStorageScanUrl?: string };
+        setStorageScan(
+          (pj.zgStorageScanUrl ?? "https://storagescan-galileo.0g.ai").replace(/\/$/, ""),
+        );
       }
     } catch (e) {
       setErr(String(e));
@@ -206,14 +264,14 @@ export default function TrainingDataPage() {
             <p className="mt-3 font-mono text-[11px] text-tertiary">
               Resolves from ENS: <span className="text-secondary">alter.trainingRoot</span> on {ens}
             </p>
-            {explorer ? (
+            {storageScan ? (
               <a
-                href={`${explorer}/storage/${trainingRoot.startsWith("0x") ? trainingRoot : `0x${trainingRoot}`}`}
+                href={`${storageScan}/submission/${trainingRoot.startsWith("0x") ? trainingRoot : `0x${trainingRoot}`}`}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-2 inline-block font-mono text-[11px] text-accent no-underline hover:underline"
               >
-                View on 0G Explorer ↗
+                View on StorageScan ↗
               </a>
             ) : null}
           </>
@@ -247,14 +305,14 @@ export default function TrainingDataPage() {
                     >
                       {shortenRoot(row.hash, 6, 4)}
                     </button>
-                    {explorer ? (
+                    {storageScan ? (
                       <a
-                        href={`${explorer}/storage/${row.hash.startsWith("0x") ? row.hash : `0x${row.hash}`}`}
+                        href={`${storageScan}/submission/${row.hash.startsWith("0x") ? row.hash : `0x${row.hash}`}`}
                         target="_blank"
                         rel="noreferrer"
                         className="text-accent hover:underline"
                       >
-                        Explorer ↗
+                        StorageScan ↗
                       </a>
                     ) : null}
                   </div>

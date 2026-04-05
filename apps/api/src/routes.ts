@@ -73,7 +73,7 @@ import {
   uploadTrainingDocument,
   deleteTrainingDocument,
   getTrainingManifest,
-  fetchTrainingDocument,
+  verifyTrainingDocumentStorage,
 } from "./trainingData.js";
 
 declare module "@fastify/jwt" {
@@ -229,6 +229,7 @@ export async function registerRoutes(app: FastifyInstance) {
     zgIndexerRpc: config.zgIndexerRpc,
     zgChainId: 16602,
     zgExplorerUrl: config.zgExplorerUrl,
+    zgStorageScanUrl: config.zgStorageScanUrl,
     inftContractAddress: config.inftAddress || null,
     sepoliaRpcConfigured: Boolean(config.sepoliaRpc),
     discoveryMode: config.discoveryMode,
@@ -386,7 +387,6 @@ export async function registerRoutes(app: FastifyInstance) {
         createdAt,
         creator: wallet.toLowerCase(),
       },
-      _counselr: configMetaEnvelope,
       _alter: configMetaEnvelope,
     };
 
@@ -436,7 +436,6 @@ export async function registerRoutes(app: FastifyInstance) {
         createdAt,
         version: 1,
         agentType: "openclaw",
-        runtime: "openclaw-v1",
         toolsCsv: OPENCLAW_TOOLS_CSV,
         worldIdLinked: true,
       });
@@ -478,7 +477,7 @@ export async function registerRoutes(app: FastifyInstance) {
       let prevRoot = config.agentIndexRoot.trim();
       if (!prevRoot && config.ensIndexName.trim()) {
         const t = await getEnsAgentTexts(config.ensIndexName.trim());
-        prevRoot = t["twinn.manifest"] ?? "";
+        prevRoot = t["agent.manifest"] ?? t["twinn.manifest"] ?? "";
       }
       if (prevRoot || config.agentIndexRoot.trim() || config.ensIndexName.trim()) {
         indexManifestRoot = await appendManifestEntry(prevRoot || undefined, {
@@ -723,23 +722,27 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.get("/agents/:id/training/verify/:docId", async (req, reply) => {
     const { id, docId } = req.params as { id: string; docId: string };
-    const docs = getTrainingDocs(id);
-    const doc = docs.find((d) => d.id === docId);
-    if (!doc) return reply.code(404).send({ error: "Doc not found" });
+    const result = await verifyTrainingDocumentStorage(id, docId);
+    if (!result) return reply.code(404).send({ error: "Doc not found" });
 
-    const content = await fetchTrainingDocument(id, doc.filename);
-    const reachable = content !== null;
-    const integrityOk = reachable;
-
-    const explorer = config.zgExplorerUrl.replace(/\/$/, "");
+    const { doc, reachable, integrityOk, byteLength, expectedSizeBytes } = result;
+    const scan = config.zgStorageScanUrl.replace(/\/$/, "");
     const hashPath = doc.hash.startsWith("0x") ? doc.hash : `0x${doc.hash}`;
 
     return reply.send({
       doc,
       reachable,
       integrityOk,
+      byteLength,
+      expectedSizeBytes,
+      contentRoot: doc.hash,
       verifiedAt: new Date().toISOString(),
-      explorerUrl: `${explorer}/storage/${hashPath}`,
+      explorerUrl: `${scan}/submission/${hashPath}`,
+      summary: reachable
+        ? integrityOk
+          ? "Blob downloaded from 0G Storage; byte length matches registry."
+          : "Blob reachable on 0G but size mismatch vs registry (re-upload or investigate)."
+        : "Blob not retrievable from 0G for this content root.",
     });
   });
 

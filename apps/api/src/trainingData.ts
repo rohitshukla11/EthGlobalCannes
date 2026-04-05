@@ -142,6 +142,27 @@ export async function fetchTrainingDocument(agentId: string, filename: string): 
   }
 }
 
+/** Download blob from 0G by stored root and compare size to registry (judge-facing proof). */
+export async function verifyTrainingDocumentStorage(
+  agentId: string,
+  docId: string
+): Promise<{
+  doc: TrainingDocument;
+  reachable: boolean;
+  integrityOk: boolean;
+  byteLength: number;
+  expectedSizeBytes: number;
+} | null> {
+  const docs = getTrainingDocs(agentId);
+  const doc = docs.find((d) => d.id === docId);
+  if (!doc) return null;
+  const content = await fetchTrainingDocument(agentId, doc.filename);
+  const reachable = content !== null;
+  const byteLength = content?.byteLength ?? 0;
+  const integrityOk = reachable && byteLength === doc.sizeBytes;
+  return { doc, reachable, integrityOk, byteLength, expectedSizeBytes: doc.sizeBytes };
+}
+
 export async function getTrainingRagForInference(
   agentId: string,
   userMessage: string,

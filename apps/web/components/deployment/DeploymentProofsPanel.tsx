@@ -98,10 +98,10 @@ export function DeploymentProofsPanel({
           </dd>
         </div>
         {ensMetadataWritten === true ? (
-          <p className="text-[11px] text-success">ENS text records (twinn.*) were written.</p>
+          <p className="text-[11px] text-success">ENS text records (agent.*) were written.</p>
         ) : ensMetadataWritten === false ? (
           <p className="text-[11px] text-tertiary/90">
-            ENS twinn.* text records were not written (set API <span className="text-secondary">ENS_OPERATOR_PRIVATE_KEY</span>{" "}
+            ENS agent.* text records were not written (set API <span className="text-secondary">ENS_OPERATOR_PRIVATE_KEY</span>{" "}
             if you control the resolver).
           </p>
         ) : null}
